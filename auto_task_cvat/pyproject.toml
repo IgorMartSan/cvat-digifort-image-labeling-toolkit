@@ -1,0 +1,17 @@
+[project]
+name = "detection-module"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "lap>=0.5.12",
+    "opencv-python>=4.11.0.86",
+    "psycopg2-binary>=2.9.10",
+    "python-dotenv>=1.1.0",
+    "sahi>=0.11.14",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
+    "torchvision>=0.21.0",
+    "ultralytics>=8.3.75",
+]
