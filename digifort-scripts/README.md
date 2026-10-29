@@ -1,5 +1,7 @@
 # Coletor de imagens de câmeras
 
+Para configurar coleta e envio ao CVAT juntos, veja o [guia do repositório](../README.md).
+
 Script único para coletar snapshots HTTP/HTTPS de várias câmeras com intervalos independentes. Também recupera gravações do Digifort. Requer Python 3.12+ e uv.
 
 ## Executar
@@ -76,9 +78,36 @@ O fim é inclusivo para horários históricos: uma captura programada exatamente
 
 **Imagens existentes têm prioridade sobre o início, inclusive “30 dias atrás”.** Para coletar novamente um período anterior, use outra pasta vazia. O fim sempre é respeitado, inclusive quando a última imagem já está além dele. Arquivos `.part` e nomes sem data válida são ignorados.
 
-Cada pasta guarda `.history.json`, atualizado por renomeação, com o próximo horário do histórico. Um progresso válido mais adiante que a última imagem é preservado para não repetir lacunas já verificadas. Sem esse JSON ou com ele inválido, continua considerando a última imagem.
+Cada pasta guarda `.history.json`, atualizado automaticamente por renomeação
+após uma imagem ser salva, tanto ao vivo quanto no histórico. Seus campos legíveis incluem:
+
+```json
+{
+  "folder": "VO2C01",
+  "last_image": "2026-10-29_08-00-00.jpg",
+  "last_image_at": "2026-10-29T08:00:00.000000",
+  "next_capture_at": "2026-10-29T08:01:00.000000"
+}
+```
+
+O arquivo contém também campos internos de identificação e cursor. Você não
+precisa criá-lo ou editá-lo. A data da última imagem só muda quando há uma imagem
+salva; consultas sem gravação e falhas de captura não alteram essa data. O próximo
+horário pode avançar após lacunas já verificadas para evitar repetir tentativas.
+
+Se as imagens forem apagadas ou removidas pelo uploader, a retomada usa o JSON.
+Alterar o intervalo recalcula a próxima captura a partir da última imagem
+registrada, respeitando a fonte e a pasta. Checkpoints do formato anterior seguem
+compatíveis; os dados da última imagem são preenchidos na próxima captura salva.
+Sem JSON válido, continua considerando as imagens presentes na pasta.
 
 Ao reiniciar com `history=true`, recupera as gravações da parada antes de voltar ao vivo, desde que ainda existam no servidor e estejam dentro do fim configurado. Com `history=false`, uma captura atrasada ocorre imediatamente, sem recuperar o passado.
+
+O uploader em `../cvat_scripts` pode rodar simultaneamente e remover lotes após
+confirmá-los no CVAT. O coletor atualiza `.history.json` em todas as capturas
+salvas, mesmo com `history=false`: se a pasta ficar sem imagens após os envios, a retomada usa
+esse progresso. Preserve o JSON. Para operação contínua, não defina `end_date` e
+configure o uploader para a mesma pasta da câmera.
 
 ## Histórico e falhas
 

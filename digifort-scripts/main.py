@@ -23,6 +23,8 @@ Exemplos de periodo (campos dentro do objeto da camera):
 RETOMADA: imagens existentes sempre tem prioridade sobre o inicio configurado.
 Continua da ultima imagem + intervalo, preservando lacunas ja verificadas no
 .history.json. Use outra pasta vazia para coletar novamente um periodo anterior.
+O JSON registra folder, last_image, last_image_at e next_capture_at, inclusive
+em cameras somente ao vivo. Remover imagens nao remove o ponto de retomada.
 O fim e inclusivo: nenhum arquivo novo recebe horario posterior a end_date.
 Sem fim, ao alcancar o presente segue ao vivo. Cada camera termina independentemente.
 OUTPUT_DIR=./volume/image e REQUEST_TIMEOUT=10 sao opcoes globais do .env.
@@ -163,6 +165,9 @@ def latest_capture(camera):
 
 def next_capture(camera):
     latest = latest_capture(camera)
+    state = read_progress(camera)
+    if state["found"] and state["next"] is not None:
+        return state["next"] if latest is None else max(state["next"], latest + camera["interval_seconds"])
     if latest is None:
         return time.time() if camera["start"] is None else camera["start"]
     return latest + camera["interval_seconds"]
@@ -211,6 +216,7 @@ async def save_response(camera, response, captured, historical=False):
         await saving
         raise
     logging.info("[%s] Imagem salva: %s", camera["folder"], path.name)
+    return path
 
 
 async def request(client, url, timeout):
@@ -302,26 +308,37 @@ def read_progress(camera):
     start_identity = camera["start"]
     if type(camera.get("start_date")) in (int, float):
         start_identity = ["days_ago", camera["start_date"]]
-    identity = [url.host, url.port, url.params["Camera"], start_identity, camera["interval_seconds"]]
+    identity = [url.host, url.port, url.params.get("Camera", url.path), start_identity, camera["interval_seconds"]]
     if camera.get("end") is not None:
         end_identity = camera["end"]
         if type(camera.get("end_date")) in (int, float):
             end_identity = ["days_ago", camera["end_date"]]
         identity.append(["end", end_identity])
-    state = dict(identity=identity, next=camera["start"], found=False, done=False)
+    state = dict(identity=identity, folder=camera["folder"], next=camera["start"],
+                 found=False, done=False, last_image=None, last_image_at=None)
     path = camera["path"] / ".history.json"
     if path.exists():
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(saved, dict) or saved.get("folder", camera["folder"]) != camera["folder"]:
+                raise ValueError("Progresso pertence a outra pasta.")
             if (saved.get("identity") == identity and type(saved.get("next")) in (float, int)
                     and math.isfinite(saved["next"])
                     and saved["next"] >= (HISTORY_BEGIN if camera["start"] is None or type(camera.get("start_date")) in (int, float) else camera["start"])
                     and type(saved.get("found")) is bool and type(saved.get("done")) is bool):
-                state = saved
+                state.update(saved)
                 if (type(camera.get("end_date")) in (int, float)
                         and state["next"] <= camera["end"]):
                     state["done"] = False  # Um fim relativo pode ter avancado desde a ultima execucao.
-        except (ValueError, AttributeError):
+            last = saved.get("last_image_at")
+            same_source = isinstance(saved.get("identity"), list) and saved["identity"][:3] == identity[:3]
+            if same_source and isinstance(last, str):
+                captured = datetime.fromisoformat(last).timestamp()
+                resume = captured + camera["interval_seconds"]
+                if state["found"] and state["next"] is not None:
+                    resume = max(resume, state["next"])
+                state.update(next=resume, found=True, last_image=saved.get("last_image"), last_image_at=last)
+        except (ValueError, AttributeError, OSError, OverflowError):
             logging.warning("[%s] Progresso invalido; retomando pela data configurada", camera["folder"])
     return state
 
@@ -329,7 +346,11 @@ def read_progress(camera):
 def write_progress(camera, state):
     path = camera["path"] / ".history.json"
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(state), encoding="utf-8")
+    state["folder"] = camera["folder"]
+    state.setdefault("last_image", None)
+    state.setdefault("last_image_at", None)
+    state["next_capture_at"] = None if state["next"] is None else datetime.fromtimestamp(state["next"]).isoformat(timespec="microseconds")
+    temporary.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     temporary.replace(path)
 
 
@@ -346,6 +367,9 @@ async def collect_history(camera, client, timeout):
                 state.update(next=resume, found=True, done=False)
                 logging.info("[%s] Retomando apos a ultima imagem: %s", camera["folder"],
                              datetime.fromtimestamp(latest).isoformat())
+            elif state["found"] and state["next"] is not None:
+                # O uploader pode ter removido todas as imagens ja enviadas.
+                state["done"] = False
             break
         except OSError:
             logging.error("[%s] Falha ao ler progresso; tentando novamente", camera["folder"])
@@ -388,13 +412,16 @@ async def collect_history(camera, client, timeout):
                 captured = datetime.fromtimestamp(due)
                 pattern = STAMP + "_%f" if captured.microsecond else STAMP
                 existing = camera["path"] / (captured.strftime(pattern) + ".jpg")
-                if not existing.exists():
+                saved_path = existing if existing.exists() else None
+                if saved_path is None:
                     response = await request(client, playback_url(camera, "GetSnapshot", due), timeout)
                     missing = re.search(r"RESPONSE_CODE=1020[01](?:\D|$)", response.text) if not response.headers.get("content-type", "").startswith("image/") else None
                     if missing:
                         logging.warning("[%s] Sem imagem em %s; mantendo intervalo", camera["folder"], captured.isoformat())
                     else:
-                        await save_response(camera, response, captured, historical=True)
+                        saved_path = await save_response(camera, response, captured, historical=True)
+                if saved_path is not None:
+                    updated.update(last_image=saved_path.name, last_image_at=captured.isoformat(timespec="microseconds"))
                 updated["next"] = round(due + camera["interval_seconds"], 3)
             write_progress(camera, updated)
             state = updated
@@ -433,8 +460,12 @@ async def collect(camera, client, timeout):
             captured = datetime.now()
             if end_date is not None and captured.timestamp() > end_date:
                 return
-            await save_response(camera, response, captured)
+            path = await save_response(camera, response, captured)
             due = captured.timestamp() + interval
+            state = read_progress(camera)
+            state.update(next=due, found=True, done=True, last_image=path.name,
+                         last_image_at=captured.isoformat(timespec="microseconds"))
+            write_progress(camera, state)
         except (httpx.HTTPError, TimeoutError, OSError, ValueError) as error:
             # Nao registrar a URL: ela pode conter credenciais.
             detail = f"HTTP {error.response.status_code}" if isinstance(error, httpx.HTTPStatusError) else type(error).__name__

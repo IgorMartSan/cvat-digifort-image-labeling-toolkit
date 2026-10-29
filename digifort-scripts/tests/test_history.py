@@ -35,6 +35,46 @@ def requested_time(request):
 
 
 class HistoryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_removed_images_resume_from_persisted_live_progress(self):
+        stamps = []
+
+        async def handler(request):
+            self.assertEqual(request.url.path, "/Interface/Cameras/Playback/GetSnapshot")
+            stamps.append(requested_time(request))
+            return httpx.Response(200, content=b"jpeg", headers={"Content-Type": "image/jpeg"})
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = camera(Path(directory), start=None)
+            main.write_progress(config, main.read_progress(config) | dict(next=BASE + 60, found=True, done=True))
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                with patch.object(main.time, "time", return_value=BASE + 180):
+                    with patch.object(main, "oldest_recording", new=AsyncMock()) as discover:
+                        await main.collect_history(config, client, 1)
+                        discover.assert_not_awaited()
+            self.assertEqual(stamps, [60, 120])
+
+    async def test_live_capture_persists_next_time_before_images_are_removed(self):
+        async def handler(request):
+            return httpx.Response(200, content=b"jpeg", headers={"Content-Type": "image/jpeg"})
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = camera(Path(directory), start=None, interval_seconds=3600)
+            main.write_progress(config, main.read_progress(config) | dict(next=BASE, done=True))
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                collector = asyncio.create_task(main.collect(config, client, 1))
+                try:
+                    async with asyncio.timeout(2):
+                        while not main.read_progress(config)["found"]:
+                            await asyncio.sleep(0.01)
+                finally:
+                    collector.cancel()
+                    await asyncio.gather(collector, return_exceptions=True)
+            state = main.read_progress(config)
+            self.assertGreater(state["next"], time.time())
+            for path in config["path"].glob("*.jpg"):
+                path.unlink()
+            self.assertEqual(main.next_capture(config), state["next"])
+
     async def test_existing_images_resume_without_rediscovering_oldest(self):
         for progress in ("missing", "behind", "done", "corrupt", "changed_start"):
             with self.subTest(progress=progress), tempfile.TemporaryDirectory() as directory:

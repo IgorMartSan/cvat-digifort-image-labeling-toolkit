@@ -1,0 +1,10 @@
+[project]
+name = "cvat-scripts"
+version = "0.1.0"
+description = "Envio de imagens por camera e periodo para projetos CVAT"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cvat-sdk~=2.62.0",
+    "python-dotenv>=1.1,<2",
+]
