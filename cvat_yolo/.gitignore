@@ -1,0 +1,15 @@
+.env
+.venv/
+.uv-cache/
+.cache/
+uv.lock
+__pycache__/
+*.py[cod]
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+logs/*
+!logs/.gitkeep
+*.pt
+*.zip

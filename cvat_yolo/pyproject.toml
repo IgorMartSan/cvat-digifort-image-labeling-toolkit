@@ -1,0 +1,14 @@
+[project]
+name = "cvat-yolo"
+version = "0.1.0"
+description = "Treinamento e anotação automática YOLO integrado ao CVAT"
+requires-python = ">=3.11"
+dependencies = [
+    "cvat-sdk~=2.62.0",
+    "python-dotenv>=1.0,<2",
+    "ultralytics>=8.3,<9",
+    "Pillow>=10,<13",
+]
+
+[tool.uv]
+package = false
