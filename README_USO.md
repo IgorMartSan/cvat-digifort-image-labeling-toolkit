@@ -13,17 +13,19 @@ imagens; cada processo pode ser configurado, reiniciado e acompanhado de forma i
 | Usar outra plataforma de labeling | Aproveite o mesmo coletor e implemente outro envio. |
 
 A separação combina com a proposta deste repositório: uma coleção de ferramentas
-reutilizáveis. Um script único precisaria coordenar coleta, envio e falhas de
-ambos. Se futuramente for necessário iniciar tudo com um comando, um lançador
-pode abrir os dois processos sem juntar suas responsabilidades.
+reutilizáveis. Cada processo cuida da sua etapa sem dependência de bibliotecas do outro.
+Para quem deseja iniciar tudo com um único comando, o orquestrador supervisionado
+`pipeline.py` gerencia os dois processos sem acoplar o código nem misturar ambientes.
 
-Enquanto o CVAT estiver fora do ar, as imagens se acumulam no disco. Acompanhe
-o espaço disponível: a pasta local mantém os lotes que ainda não foram confirmados.
+Enquanto o CVAT estiver fora do ar ou não configurado, a coleta continua baixando e
+gravando as imagens no disco. Acompanhe o espaço disponível: a pasta local mantém os
+lotes acumulados até que o CVAT esteja acessível e confirmado. Ao reiniciar ou reestabelecer
+o CVAT, o uploader envia esse backlog em lotes completos.
 
 ## 1. Preparar o ambiente
 
 Tenha Python 3.12+ e uv disponíveis. Você também precisa do endereço e acesso ao
-Digifort, além de um projeto existente no CVAT com seus labels e permissões.
+Digifort, além de uma organização CVAT e uma conta com permissão para criar projetos e tasks.
 
 Abra o terminal na raiz do repositório. Crie os `.env` somente se ainda não existirem:
 
@@ -80,7 +82,8 @@ Edite `cvat_scripts/.env`:
 CVAT_URL=http://SERVIDOR_CVAT:8080
 CVAT_USERNAME=seu_usuario
 CVAT_PASSWORD='sua_senha'
-CVAT_ORGANIZATION=
+CVAT_ORGANIZATION=VOD
+CVAT_LABELS='[]'
 
 DRY_RUN=true
 LOOP=true
@@ -90,13 +93,11 @@ AUTO_REMOVE=false
 FOLDERS='[
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C01",
-    "project_id": 8,
     "images_per_task": 50,
     "auto_remove": true
   },
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C02",
-    "project_id": 12,
     "images_per_task": 100,
     "auto_remove": false
   }
@@ -105,8 +106,11 @@ FOLDERS='[
 
 Defina as pastas na lista JSON `FOLDERS`. Cada objeto informa o caminho,
 o projeto de destino e o tamanho do lote. Para uma pasta, use um único objeto;
-para várias, acrescente objetos. O exemplo envia `VO2C01` ao projeto 8 e `VO2C02`
-ao projeto 12. Mantenha apenas as pastas que deseja acompanhar.
+para várias, acrescente objetos. Na organização `VOD`, cria/reutiliza os projetos
+`VO2C01` e `VO2C02`, com os nomes das pastas. Não precisa informar IDs.
+Mantenha apenas as pastas que deseja acompanhar. `CVAT_LABELS='[]'` deixa os
+projetos novos sem classes; elas podem ser adicionadas depois na interface CVAT.
+Se quiser usar um projeto fixo, `project_id` no objeto continua disponível.
 Se o projeto for de uma organização, preencha `CVAT_ORGANIZATION` global ou
 `"organization": "slug"` no objeto correspondente.
 
@@ -139,8 +143,9 @@ cd cvat_scripts
 uv run python main.py --dry-run
 ```
 
-A simulação não cria tasks nem remove arquivos. Quando há imagens, consulta o
-CVAT para verificar a retomada. Com a pasta vazia, aguarda sem testar o login.
+A simulação não cria projetos/tasks nem remove arquivos. Consulta o CVAT para
+informar quais projetos criaria/reutilizaria e conferir a retomada. No modo de
+projeto automático, também consulta quando a pasta está vazia.
 
 Depois, no mesmo terminal, inicie o envio contínuo:
 
@@ -208,7 +213,8 @@ No teste, `VO2C01` e `VO2C05` retornaram 1280×720; `VO2C02`, 960×720 (4:3).
 
 A saída configurada é `volume/image/<camera>` na raiz do repositório
 (`OUTPUT_DIR=../volume/image` no coletor). As três entradas do uploader apontam
-para essas mesmas pastas, no projeto 8, em lotes de 50 imagens.
+para essas mesmas pastas, criando/reutilizando os projetos `VO2C01`, `VO2C02`
+e `VO2C05` na organização `VOD`, sem labels, em lotes de 50 imagens.
 Imagens/progresso existentes mantêm prioridade sobre a data inicial configurada.
 Reinicie os dois processos após aplicar essas configurações.
 

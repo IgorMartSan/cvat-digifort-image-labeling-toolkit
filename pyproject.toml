@@ -1,0 +1,12 @@
+[project]
+name = "cvat-digifort-pipeline"
+version = "0.1.0"
+description = "Pipeline de coleta e envio opcional de imagens ao CVAT"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cvat-sdk~=2.62.0",
+    "httpx>=0.28.1,<1",
+    "pillow>=12,<13",
+    "python-dotenv>=1.1.0,<2",
+]

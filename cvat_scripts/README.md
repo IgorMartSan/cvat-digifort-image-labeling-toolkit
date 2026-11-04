@@ -13,7 +13,8 @@ retomada independente pelos nomes das tasks de cada câmera no respectivo projet
 CVAT_URL=http://SERVIDOR_CVAT:8080
 CVAT_USERNAME=seu_usuario
 CVAT_PASSWORD='sua_senha'
-CVAT_ORGANIZATION=
+CVAT_ORGANIZATION=VOD
+CVAT_LABELS='[]'
 
 DRY_RUN=true
 LOOP=true
@@ -23,21 +24,20 @@ AUTO_REMOVE=false
 FOLDERS='[
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C01",
-    "project_id": 8,
     "images_per_task": 50,
     "auto_remove": true
   },
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C02",
-    "project_id": 12,
     "images_per_task": 100,
     "auto_remove": false
   }
 ]'
 ```
 
-Nesse exemplo, `VO2C01` usa o projeto 8 e lotes de 50; `VO2C02` usa o projeto 12 e
-lotes de 100. Para uma pasta, mantenha somente um objeto. As imagens devem estar
+Nesse exemplo, a organização é `VOD`. `VO2C01` usa o projeto `VO2C01` e lotes de 50;
+`VO2C02` usa o projeto `VO2C02` e lotes de 100. Os projetos são criados se não
+existirem. Para uma pasta, mantenha somente um objeto. As imagens devem estar
 diretamente dentro de cada pasta:
 
 ```text
@@ -58,10 +58,12 @@ um objeto à lista e reinicie. Projetos diferentes podem aparecer na mesma lista
 | `CVAT_ORGANIZATION` | Global | Organização padrão; pode ser substituída por pasta. |
 | `FOLDERS` | Global | Lista JSON com um objeto por pasta. |
 | `images_dir` | Objeto JSON | Caminho da pasta da câmera. |
-| `project_id` | Objeto JSON | ID do projeto existente para essa pasta. |
+| `project_id` | Objeto JSON, opcional | Se informado, usa esse projeto existente; se omitido, busca/cria pelo nome da pasta. |
 | `images_per_task` | Objeto JSON | Lote completo; padrão 50 se omitido. |
 | `auto_remove` | Objeto JSON | Booleano; se omitido, herda `AUTO_REMOVE`. |
-| `organization` | Objeto JSON | Substitui `CVAT_ORGANIZATION`; vazio usa o contexto padrão. |
+| `organization` | Objeto JSON | Substitui `CVAT_ORGANIZATION`; obrigatória no modo automático. Vazio é permitido com ID explícito. |
+| `CVAT_LABELS` | Global | Lista JSON de nomes para projetos novos; `[]` cria sem labels. |
+| `labels` | Objeto JSON, opcional | Substitui `CVAT_LABELS` para o projeto novo dessa pasta. |
 | `DRY_RUN` | Global | `true` simula; `false` envia se não houver argumento. |
 | `LOOP` | Global | `true` repete os ciclos; `false` percorre a lista uma vez. |
 | `POLL_INTERVAL_SECONDS` | Global | Espera após percorrer todas as pastas; padrão 5 segundos. |
@@ -89,12 +91,24 @@ uv run python main.py --send
 uv run python main.py --send --once
 ```
 
-O uv instala as dependências. Sem argumentos, segue `DRY_RUN`. A simulação também autentica no CVAT para consultar as tasks existentes. O projeto e seus labels devem existir; as tasks herdam os labels do projeto. O script não cria projetos.
+O uv instala as dependências. Sem argumentos, segue `DRY_RUN`. A simulação
+autentica e consulta o CVAT, mas não cria projetos/tasks. Informa quais projetos
+seriam criados e os lotes previstos. Sem `project_id`, a organização deve ser
+informada. O script procura o projeto pelo nome da pasta nessa organização e o
+reutiliza; se não existir, cria. Se houver nomes duplicados, avisa e solicita
+um `project_id` explícito para escolher o destino.
+
+Os projetos são verificados/criados mesmo quando as pastas estão vazias. Nesse
+caso, após verificar o projeto, aguarda as imagens para completar o lote.
+Projetos novos usam `CVAT_LABELS` ou `labels` do objeto. Com `[]`, são criados
+sem classes; adicione-as no CVAT quando for iniciar a anotação. Labels de projetos
+existentes não são alterados automaticamente. As tasks herdam os labels do projeto.
 
 Com `LOOP=true`, `--send` mantém o uploader ativo. Percorre as pastas sequencialmente
 e espera `POLL_INTERVAL_SECONDS` após o ciclo completo. Uma falha não impede
 verificar as próximas entradas. Pasta vazia é normal:
-aguarda novas imagens, sem conectar ao CVAT nesse ciclo. Se a pasta não existir,
+aguarda novas imagens. No modo automático, conecta para conferir/criar o projeto;
+com `project_id` fixo e pasta vazia, dispensa a conexão nesse ciclo. Se a pasta não existir,
 ela é criada. `--dry-run` sempre verifica uma única vez e nunca remove arquivos.
 Ctrl+C encerra o processo. Erros de conexão e avisos de upload pendente não derrubam
 o modo contínuo: o próximo ciclo tenta verificar novamente.

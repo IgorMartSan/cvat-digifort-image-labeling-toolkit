@@ -1,2 +1,6 @@
 # Imagens e progresso gerados pelos scripts.
 /volume/
+pipeline.env
+.venv/
+.uv-cache/
+__pycache__/

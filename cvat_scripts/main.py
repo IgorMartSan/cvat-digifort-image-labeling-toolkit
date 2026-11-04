@@ -1,12 +1,15 @@
-"""Cria tasks de imagens em um projeto CVAT existente, por camera e periodo.
+"""Cria/reutiliza projetos por pasta e envia tasks por camera e periodo.
 
 uv run python main.py --dry-run : consulta o CVAT e mostra o plano, sem enviar.
 uv run python main.py --send    : verifica duplicatas e envia os lotes novos.
 Sem argumento, usa DRY_RUN do .env (padrao true).
 
 FOLDERS: lista JSON no .env, com um objeto por pasta/projeto.
-Cada objeto: images_dir, project_id, images_per_task (padrao 50),
+Cada objeto: images_dir, images_per_task (padrao 50),
 auto_remove (opcional) e organization (opcional).
+Sem project_id, busca/cria um projeto com o nome da pasta na organizacao.
+project_id opcional permite escolher um projeto existente explicitamente.
+CVAT_LABELS: lista JSON de nomes de labels para projetos novos; padrao [].
 O nome de cada pasta identifica a camera. Cada pasta tem retomada propria.
 LOOP=true: verifica continuamente; POLL_INTERVAL_SECONDS=5 define a espera.
 AUTO_REMOVE=true: remove somente os arquivos do lote confirmado no CVAT.
@@ -29,6 +32,7 @@ import json
 import logging
 import os
 import re
+import signal
 import time
 from collections import Counter
 from datetime import datetime
@@ -70,8 +74,17 @@ def env_bool(name, default):
     return value == "true"
 
 
+def label_names(value):
+    if not isinstance(value, list) or any(not isinstance(name, str) or not name.strip() for name in value):
+        raise ValueError("Labels devem ser uma lista JSON de nomes nao vazios.")
+    result = [name.strip() for name in value]
+    if len({name.casefold() for name in result}) != len(result):
+        raise ValueError("Labels repetidos na configuracao.")
+    return result
+
+
 def load_config():
-    load_dotenv(BASE_DIR / ".env", interpolate=False)
+    load_dotenv(Path(os.environ.get("CONFIG_ENV_FILE", BASE_DIR / ".env")), interpolate=False)
     config = {key: os.environ.get(key, "").strip() for key in (
         "CVAT_URL", "CVAT_USERNAME", "CVAT_ORGANIZATION"
     )}
@@ -85,6 +98,7 @@ def load_config():
     config["DRY_RUN"] = env_bool("DRY_RUN", "true")
     config["LOOP"] = env_bool("LOOP", "true")
     config["AUTO_REMOVE"] = env_bool("AUTO_REMOVE", "false")
+    config["CVAT_LABELS"] = label_names(json.loads(os.environ.get("CVAT_LABELS", "[]")))
     config["POLL_INTERVAL_SECONDS"] = positive_int(os.environ.get("POLL_INTERVAL_SECONDS", "5"), "POLL_INTERVAL_SECONDS")
     folders = json.loads(os.environ.get("FOLDERS", "[]"))
     if not isinstance(folders, list) or not folders:
@@ -96,13 +110,17 @@ def load_config():
         path = (BASE_DIR / entry["images_dir"]).resolve()
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", path.name):
             raise ValueError(f"FOLDERS[{index}]: nome da pasta/camera invalido.")
-        project = positive_int(entry.get("project_id", ""), f"FOLDERS[{index}].project_id")
+        project = entry.get("project_id")
+        project = None if project in (None, "") else positive_int(project, f"FOLDERS[{index}].project_id")
         limit = positive_int(entry.get("images_per_task", 50), f"FOLDERS[{index}].images_per_task")
         remove = entry.get("auto_remove", config["AUTO_REMOVE"])
         organization = entry.get("organization", config["CVAT_ORGANIZATION"])
         if type(remove) is not bool or not isinstance(organization, str):
             raise ValueError(f"FOLDERS[{index}]: auto_remove deve ser booleano e organization deve ser texto.")
         organization = organization.strip()
+        if project is None and not organization:
+            raise ValueError(f"FOLDERS[{index}]: informe organization ou CVAT_ORGANIZATION para criar/buscar o projeto pela pasta.")
+        labels = label_names(entry.get("labels", config["CVAT_LABELS"]))
         identity = (organization, project, path.name.casefold())
         normalized_path = os.path.normcase(str(path))
         if normalized_path in paths:
@@ -112,7 +130,7 @@ def load_config():
         paths.add(normalized_path)
         destinations.add(identity)
         configured.append(config | dict(IMAGES_DIR=path, CVAT_PROJECT_ID=project,
-                          IMAGES_PER_TASK=limit, AUTO_REMOVE=remove, CVAT_ORGANIZATION=organization))
+                          IMAGES_PER_TASK=limit, AUTO_REMOVE=remove, CVAT_ORGANIZATION=organization, CVAT_LABELS=labels))
     for folder in configured:
         folder["IMAGES_DIR"].mkdir(parents=True, exist_ok=True)
     config["FOLDERS"] = configured
@@ -257,18 +275,44 @@ def remove_uploaded(images, signatures, root):
             logging.warning("Nao foi possivel remover %s; arquivo mantido para revisao.", path.name)
 
 
+def resolve_project(client, config, dry_run):
+    project_id = config.get("CVAT_PROJECT_ID")
+    if project_id is not None:
+        return client.projects.retrieve(project_id)
+    name = config["IMAGES_DIR"].name
+    if not config["CVAT_ORGANIZATION"]:
+        raise ValueError("Informe a organizacao para buscar/criar projetos pela pasta.")
+    matches = [project for project in client.projects.list() if project.name.casefold() == name.casefold()]
+    if len(matches) > 1:
+        raise ValueError(f"Mais de um projeto chamado {name} na organizacao. Defina project_id para escolher o destino.")
+    if matches:
+        return matches[0]
+    if dry_run:
+        logging.info("SIMULACAO: criaria projeto %s na organizacao %s, com %d labels.",
+                     name, config["CVAT_ORGANIZATION"], len(config.get("CVAT_LABELS", [])))
+        return None
+    project = client.projects.create(spec={"name": name,
+        "labels": [{"name": label} for label in config.get("CVAT_LABELS", [])]})
+    logging.info("Projeto criado: %s (ID %s), organizacao %s.", name, project.id, config["CVAT_ORGANIZATION"])
+    return project
+
+
 def run(config, dry_run):
     cameras = scan_cameras(config["IMAGES_DIR"])
-    if not any(cameras.values()):
+    if not any(cameras.values()) and config.get("CVAT_PROJECT_ID") is not None:
         logging.info("[%s] Pasta sem imagens prontas; aguardando a coleta.", config["IMAGES_DIR"].name)
         return
     with make_client(host=config["CVAT_URL"], credentials=(config["CVAT_USERNAME"], config["CVAT_PASSWORD"])) as client:
         if config["CVAT_ORGANIZATION"]:
             client.organization_slug = config["CVAT_ORGANIZATION"]
-        project = client.projects.retrieve(config["CVAT_PROJECT_ID"])
-        logging.info("Projeto CVAT: %s (ID %s); modo: %s", project.name, project.id,
+        project = resolve_project(client, config, dry_run)
+        logging.info("Projeto CVAT: %s (ID %s); modo: %s", project.name if project else config["IMAGES_DIR"].name,
+                     project.id if project else "a criar",
                      "SIMULACAO" if dry_run else "ENVIO")
-        periods, issues = existing_periods(project.get_tasks(), cameras)
+        if not any(cameras.values()):
+            logging.info("[%s] Projeto verificado; aguardando imagens para completar o lote.", config["IMAGES_DIR"].name)
+            return
+        periods, issues = existing_periods(project.get_tasks(), cameras) if project else ([], [])
         batches, skipped = plan_batches(cameras, periods, config["IMAGES_PER_TASK"])
         waiting = sum(len(images) for images in cameras.values()) - skipped - sum(len(images) for _, images in batches)
         for camera, images in batches:
@@ -318,7 +362,7 @@ def monitor(config, dry_run):
                 if isinstance(error, ValueError):
                     logging.error("%s", error)
                 logging.error("[%s / projeto %s] Falha (%s; HTTP %s). As demais pastas continuam.",
-                              folder["IMAGES_DIR"].name, folder["CVAT_PROJECT_ID"],
+                              folder["IMAGES_DIR"].name, folder.get("CVAT_PROJECT_ID") or folder["IMAGES_DIR"].name,
                               type(error).__name__, getattr(error, "status", "indisponivel"))
         if dry_run or not config["LOOP"]:
             if failures:
@@ -354,4 +398,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, signal.default_int_handler)
     raise SystemExit(main())

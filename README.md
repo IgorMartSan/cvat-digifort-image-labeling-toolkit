@@ -11,6 +11,7 @@ image labeling, datasets e computer vision, com novas integrações conforme a n
 
 | Pasta | Finalidade | Guia |
 |---|---|---|
+| `pipeline` | Serviço unificado da pipeline: coleta contínua e envio resiliente ao CVAT com retry infinito. | [Serviço](pipeline/README.md) |
 | `digifort-scripts` | Coleta HTTP/HTTPS de várias câmeras, ao vivo ou do histórico Digifort. | [Coletor](digifort-scripts/README.md) |
 | `cvat_scripts` | Envio das pastas definidas em JSON ao CVAT, com projeto, lotes e retomada por câmera. | [Uploader](cvat_scripts/README.md) |
 | `auto_task_cvat` | Scripts anteriores de captura e integração, utilizados como referência. | [Arquivos anteriores](auto_task_cvat/) |
@@ -32,7 +33,7 @@ ou filas. Cada pasta tem seu próprio `.env`, `pyproject.toml` e `uv.lock`.
 
 - Python 3.12+ e uv disponíveis no terminal.
 - Acesso de rede às câmeras/Digifort e ao CVAT.
-- Projeto CVAT existente, com labels e permissão de criar tasks.
+- Organização CVAT e uma conta com permissão para criar projetos e tasks.
 - Para histórico, permissão de consultar e visualizar gravações no Digifort.
 
 Execute os comandos dentro da pasta do script. O uv prepara as dependências.
@@ -93,7 +94,8 @@ Exemplo de `cvat_scripts/.env`, usando a mesma pasta:
 CVAT_URL=http://SERVIDOR_CVAT:8080
 CVAT_USERNAME=seu_usuario
 CVAT_PASSWORD='sua_senha'
-CVAT_ORGANIZATION=
+CVAT_ORGANIZATION=VOD
+CVAT_LABELS='[]'
 
 DRY_RUN=true
 LOOP=true
@@ -103,13 +105,11 @@ AUTO_REMOVE=false
 FOLDERS='[
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C01",
-    "project_id": 8,
     "images_per_task": 50,
     "auto_remove": true
   },
   {
     "images_dir": "../digifort-scripts/volume/image/VO2C02",
-    "project_id": 12,
     "images_per_task": 100,
     "auto_remove": false
   }
@@ -120,7 +120,11 @@ FOLDERS='[
 lote. Para uma única pasta, mantenha apenas um objeto; para adicionar câmeras,
 acrescente objetos. **A câmera é o nome da pasta**, como `VO2C01` e `VO2C02`.
 Cada `images_dir` aponta diretamente para as imagens dessa câmera.
-Cada `project_id` identifica um projeto existente; o script não cria projetos ou labels.
+Sem `project_id`, procura/cria um projeto com o nome da pasta dentro de `VOD`.
+Assim, `VO2C01` e `VO2C02` têm projetos próprios, reutilizados nas próximas execuções.
+`project_id` continua opcional para escolher um projeto existente explicitamente.
+`CVAT_LABELS='[]'` cria projetos sem labels, conforme o perfil atual; configure
+as classes no CVAT quando for iniciar a anotação. Não altera labels de projetos existentes.
 `auto_remove` controla a remoção por pasta. Se omitido, herda `AUTO_REMOVE` global.
 Uma `organization` no objeto pode substituir `CVAT_ORGANIZATION` global.
 
@@ -150,7 +154,8 @@ uv run python main.py --dry-run
 ```
 
 A simulação consulta o projeto e mostra o planejamento, sem criar tasks nem
-remover arquivos. Com a pasta vazia, apenas informa que está aguardando.
+remover arquivos. No modo automático, informa se criaria/reutilizaria o projeto
+mesmo quando a pasta está vazia e então aguarda as imagens.
 Depois, para manter o envio ativo no segundo terminal:
 
 ```powershell
@@ -161,6 +166,32 @@ uv run python main.py --send
 segundos entre ciclos. Use `--send --once` para verificar uma única vez.
 `--dry-run` sempre executa uma vez e nunca apaga arquivos, mesmo com remoção habilitada.
 Encerre cada processo com Ctrl+C.
+
+### 5. Ou executar tudo via Pipeline (orquestrador supervisionado)
+
+Se preferir gerenciar os módulos a partir de um único comando na raiz do repositório,
+use a pipeline integrada (`pipeline.py`). Ela inicia subprocessos independentes para
+a coleta e o envio, preservando o isolamento de dependências e ambientes:
+
+```powershell
+if (-not (Test-Path -LiteralPath 'pipeline.env')) {
+    Copy-Item -LiteralPath 'pipeline.env.example' -Destination 'pipeline.env'
+}
+
+# 1. Conferir arquivos e etapas sem conectar:
+uv run python pipeline.py --check
+
+# 2. Executar a pipeline supervisionada:
+uv run python pipeline.py
+
+# 3. Ou forçar somente a coleta:
+uv run python pipeline.py --collect-only
+```
+
+- **Resiliência a falhas:** se o CVAT não estiver configurado ou estiver fora do ar,
+  a pipeline mantém a coleta de imagens ativa sem interrupções.
+- **Backlog e retomada:** ao restabelecer o CVAT ou corrigir o `.env` e reiniciar
+  a pipeline, o uploader detecta as imagens acumuladas na pasta local e as envia em lotes completos.
 
 ## Datas, horários e resolução
 
@@ -240,7 +271,6 @@ O coletor aceita várias câmeras, e o uploader verifica todas as entradas de
 ```json
 {
   "images_dir": "../digifort-scripts/volume/image/VO2C03",
-  "project_id": 15,
   "images_per_task": 200,
   "auto_remove": true
 }
@@ -258,7 +288,7 @@ Evite processos simultâneos para o mesmo destino.
 | Situação | O que conferir |
 |---|---|
 | CVAT recusa login | URL, usuário/senha e acesso da conta. |
-| Projeto não encontrado | `project_id`, organização e permissões. |
+| Projeto não pode ser localizado/criado | Organização, permissões e `project_id` se usado explicitamente. |
 | Imagens abaixo do tamanho do lote | Aguarda completar `images_per_task`. |
 | Pasta permanece vazia | URL da imagem, início agendado, rede e logs do coletor. |
 | Task permanece com `uploading` | Verifique processamento, quantidade e arquivos no CVAT antes de concluir ou corrigir a task. |

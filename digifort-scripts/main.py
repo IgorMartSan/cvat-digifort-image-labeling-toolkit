@@ -37,6 +37,7 @@ import logging
 import math
 import os
 import re
+import signal
 import tempfile
 import time
 from io import BytesIO
@@ -89,7 +90,7 @@ def parse_date(value, now):
 
 
 def load_config():
-    load_dotenv(BASE_DIR / ".env", interpolate=False)
+    load_dotenv(Path(os.environ.get("CONFIG_ENV_FILE", BASE_DIR / ".env")), interpolate=False)
     cameras = json.loads(os.environ.get("CAMERAS", "[]"))
     if not isinstance(cameras, list) or not cameras:
         raise ValueError("CAMERAS deve ser uma lista JSON com ao menos uma camera.")
@@ -118,7 +119,7 @@ def load_config():
         if camera.get("history") and (url.path.lower() != "/interface/cameras/getsnapshot" or not url.params.get("Camera")):
             raise ValueError(f"Camera {index}: historico requer URL de snapshot Digifort com Camera.")
         camera["history_search_hours"] = positive_number(camera.get("history_search_hours", 6))
-        camera["history_retry_seconds"] = positive_number(camera.get("history_retry_seconds", 30))
+        camera["history_retry_seconds"] = positive_number(camera.get("history_retry_seconds", 13))
         camera["resize"] = resolution(camera["resize"]) if camera.get("resize") is not None else None
         quality = camera.get("quality", 100)
         if type(quality) is not int or not 1 <= quality <= 100:
@@ -469,8 +470,9 @@ async def collect(camera, client, timeout):
         except (httpx.HTTPError, TimeoutError, OSError, ValueError) as error:
             # Nao registrar a URL: ela pode conter credenciais.
             detail = f"HTTP {error.response.status_code}" if isinstance(error, httpx.HTTPStatusError) else type(error).__name__
-            logging.error("[%s] Falha na captura (%s)", camera["folder"], detail)
-            due = attempted + interval
+            retry = camera.get("retry_seconds", min(interval, 13.0))
+            logging.error("[%s] Falha na captura (%s); repetindo em %gs", camera["folder"], detail, retry)
+            due = attempted + retry
         # Se a requisicao demorou mais que o intervalo, nao acumular tentativas.
         if due <= time.time():
             due = time.time() + interval
@@ -490,6 +492,8 @@ async def main():
 
 
 if __name__ == "__main__":
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, signal.default_int_handler)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
