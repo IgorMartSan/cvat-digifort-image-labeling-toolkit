@@ -184,14 +184,26 @@
 
     // --- Gerenciamento do Stepper Visual e Alternância de Formulários ---
     function setWizardStep(stepNum, totalSteps = 4) {
+        const modelSelect = document.getElementById('model-select');
+        const destProj = document.getElementById('dest-project-select');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+
         for (let i = 1; i <= totalSteps; i++) {
             const nav = document.getElementById(`step-nav-${i}`);
             if (!nav) continue;
-            nav.classList.remove('active', 'completed');
+            nav.classList.remove('active', 'completed', 'unlocked');
             if (i < stepNum) {
                 nav.classList.add('completed');
             } else if (i === stepNum) {
                 nav.classList.add('active');
+            } else {
+                const isUnlocked = (i === 2 && modelSelect && modelSelect.value) ||
+                                   (i === 3 && s3 && destProj && destProj.value) ||
+                                   (i === 4 && s4);
+                if (isUnlocked) {
+                    nav.classList.add('unlocked');
+                }
             }
         }
         // Colore e destaca a seta ao passar para a próxima etapa
@@ -212,25 +224,16 @@
         const s2 = document.getElementById('step-2-card');
         const s3 = document.getElementById('step-3-card');
         const s4 = document.getElementById('step-4-card');
+        const modelSelect = document.getElementById('model-select');
+        const destProj = document.getElementById('dest-project-select');
 
-        // Validação de pré-requisitos para pular etapas para frente
-        if (stepNum >= 2) {
-            const modelSelect = document.getElementById('model-select');
-            if (!modelSelect || !modelSelect.value) {
-                alert('Por favor, selecione primeiro um modelo treinado na Etapa 1.');
-                return showPredictionStep(1);
-            }
-        }
-        if (stepNum >= 3 && !s3) {
-            const destProj = document.getElementById('dest-project-select');
-            if (!destProj || !destProj.value) {
-                alert('Por favor, selecione o projeto de destino na Etapa 2.');
-                return showPredictionStep(2);
-            }
-        }
-        if (stepNum >= 4 && !s4) {
-            alert('Por favor, marque as tarefas na Etapa 3 e avance para o mapeamento.');
-            return showPredictionStep(s3 ? 3 : 2);
+        // Validação suave de pré-requisitos sem alertas ou modais intrusivos
+        if (stepNum >= 2 && (!modelSelect || !modelSelect.value)) {
+            stepNum = 1;
+        } else if (stepNum >= 3 && (!s3 || !destProj || !destProj.value)) {
+            stepNum = (modelSelect && modelSelect.value) ? 2 : 1;
+        } else if (stepNum >= 4 && !s4) {
+            stepNum = s3 ? 3 : ((modelSelect && modelSelect.value) ? 2 : 1);
         }
 
         // Mostra APENAS o formulário da etapa atual
@@ -244,7 +247,22 @@
     }
 
     function onStepperClick(stepNum) {
-        showPredictionStep(stepNum);
+        const modelSelect = document.getElementById('model-select');
+        const destProj = document.getElementById('dest-project-select');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+
+        // Permite navegar apenas para etapas que já foram carregadas/desbloqueadas
+        if (stepNum === 1) {
+            showPredictionStep(1);
+        } else if (stepNum === 2 && modelSelect && modelSelect.value) {
+            showPredictionStep(2);
+        } else if (stepNum === 3 && s3 && destProj && destProj.value) {
+            showPredictionStep(3);
+        } else if (stepNum === 4 && s4) {
+            showPredictionStep(4);
+        }
+        // Se a etapa futura ainda não foi alcançada, ignora silenciosamente sem abrir popup/modal
     }
 
     // --- Passo 1: Selecionar Modelo Treinado ---

@@ -207,14 +207,24 @@
     }
 
     function setWizardStep(stepNum, totalSteps = 5) {
+        const s2 = document.getElementById('step-2-card');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+        const s5 = document.getElementById('step-5-card');
+
         for (let i = 1; i <= totalSteps; i++) {
             const nav = document.getElementById(`step-nav-${i}`);
             if (!nav) continue;
-            nav.classList.remove('active', 'completed');
+            nav.classList.remove('active', 'completed', 'unlocked');
             if (i < stepNum) {
                 nav.classList.add('completed');
             } else if (i === stepNum) {
                 nav.classList.add('active');
+            } else {
+                const isUnlocked = (i === 2 && s2) || (i === 3 && s3) || (i === 4 && s4) || (i === 5 && s5);
+                if (isUnlocked) {
+                    nav.classList.add('unlocked');
+                }
             }
         }
         // Colore a seta de avanço ao passar para a próxima etapa
@@ -241,22 +251,15 @@
         const s4 = document.getElementById('step-4-card');
         const s5 = document.getElementById('step-5-card');
 
-        // Validação de pré-requisitos para pular etapas para frente
+        // Validação suave de pré-requisitos sem alertas ou modais intrusivos
         if (stepNum >= 2 && !s2) {
-            alert('Por favor, selecione primeiro um Projeto CVAT na Etapa 1.');
-            return showTrainingStep(1);
-        }
-        if (stepNum >= 3 && !s3) {
-            alert('Por favor, marque as tarefas na Etapa 2 e clique em "Prosseguir para Framework".');
-            return showTrainingStep(s2 ? 2 : 1);
-        }
-        if (stepNum >= 4 && !s4) {
-            alert('Por favor, confirme o Framework na Etapa 3 primeiro.');
-            return showTrainingStep(s3 ? 3 : (s2 ? 2 : 1));
-        }
-        if (stepNum >= 5 && !s5) {
-            alert('Por favor, confirme as configurações na Etapa 4 primeiro.');
-            return showTrainingStep(s4 ? 4 : (s3 ? 3 : 1));
+            stepNum = 1;
+        } else if (stepNum >= 3 && !s3) {
+            stepNum = s2 ? 2 : 1;
+        } else if (stepNum >= 4 && !s4) {
+            stepNum = s3 ? 3 : (s2 ? 2 : 1);
+        } else if (stepNum >= 5 && !s5) {
+            stepNum = s4 ? 4 : (s3 ? 3 : 1);
         }
 
         // Mostra APENAS o formulário da etapa atual
@@ -275,7 +278,25 @@
     }
 
     function onStepperClick(stepNum) {
-        showTrainingStep(stepNum);
+        const s1 = document.getElementById('step-1-card');
+        const s2 = document.getElementById('step-2-card');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+        const s5 = document.getElementById('step-5-card');
+
+        // Permite navegar apenas para etapas que já foram carregadas/desbloqueadas
+        if (stepNum === 1) {
+            showTrainingStep(1);
+        } else if (stepNum === 2 && s2) {
+            showTrainingStep(2);
+        } else if (stepNum === 3 && s3) {
+            showTrainingStep(3);
+        } else if (stepNum === 4 && s4) {
+            showTrainingStep(4);
+        } else if (stepNum === 5 && s5) {
+            showTrainingStep(5);
+        }
+        // Se a etapa futura ainda não foi alcançada, ignora silenciosamente sem abrir popup/modal
     }
 
     // Intercepta troca de projeto para perguntar se tem certeza caso etapas seguintes já estejam abertas
