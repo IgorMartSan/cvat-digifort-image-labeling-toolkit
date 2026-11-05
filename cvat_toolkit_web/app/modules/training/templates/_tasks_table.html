@@ -1,0 +1,150 @@
+<div class="card-neutral mb-4" id="step-2-card">
+    <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <span class="step-header-tag">2</span>
+            <span class="fw-bold">Marcar as Tarefas do Projeto</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectCompletedTasks()">
+                ✓ Apenas Concluídas
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllTasks(true)">
+                Marcar Todas
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllTasks(false)">
+                Limpar
+            </button>
+        </div>
+    </div>
+    <div class="p-3">
+        {% if tasks %}
+        <form id="analyze-form" hx-post="/training/analyze" hx-target="#analysis-container" hx-indicator="#global-spinner" onsubmit="return validateTaskSelection()">
+            <input type="hidden" name="project_id" value="{{ project_id }}">
+            <div class="table-responsive">
+                <table class="table-clean mb-3">
+                    <thead>
+                        <tr>
+                            <th style="width: 45px;">
+                                <input type="checkbox" class="form-check-input" id="check-all-tasks" onchange="selectAllTasks(this.checked)">
+                            </th>
+                            <th style="width: 85px;">ID</th>
+                            <th>Nome da Tarefa</th>
+                            <th style="width: 150px;">Estado no CVAT</th>
+                            <th style="width: 120px;">Qtd Imagens</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr class="task-row" style="cursor: pointer;" onclick="toggleTaskRow(event, {{ task.id }})">
+                            <td onclick="event.stopPropagation()">
+                                <input type="checkbox" name="task_ids" value="{{ task.id }}" id="task-cb-{{ task.id }}" data-images="{{ task.images_count }}" data-completed="{{ 'true' if task.completed else 'false' }}" class="form-check-input task-checkbox" {% if task.completed %}checked{% endif %}>
+                            </td>
+                            <td><code>#{{ task.id }}</code></td>
+                            <td class="fw-medium">{{ task.name }}</td>
+                            <td>
+                                {% if task.completed %}
+                                <span class="badge-clean-success">✓ Concluído</span>
+                                {% else %}
+                                <span class="badge-clean-neutral">{{ task.state }}</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="fw-semibold">{{ task.images_count }}</span> fotos</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-2 flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showTrainingStep(1)">
+                    <span>⬅</span> Voltar para Projeto (Passo 1)
+                </button>
+                <div class="text-muted small">
+                    <strong id="selected-tasks-count" class="text-dark">0</strong> tarefas marcadas (<strong id="selected-images-count" class="text-dark">0</strong> imagens totais)
+                </div>
+                <button type="submit" class="btn-primary-dark d-flex align-items-center gap-2" id="btn-proceed-step3">
+                    <span>Prosseguir para Framework (Passo 3)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+            <p class="mb-0">Nenhuma tarefa encontrada neste projeto do CVAT.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function toggleTaskRow(event, taskId) {
+        if (event.target.tagName.toLowerCase() === 'input') return;
+        const cb = document.getElementById('task-cb-' + taskId);
+        if (cb) {
+            cb.checked = !cb.checked;
+            updateTaskCount();
+        }
+    }
+
+    function selectAllTasks(checked) {
+        document.querySelectorAll('.task-checkbox').forEach(cb => cb.checked = checked);
+        const master = document.getElementById('check-all-tasks');
+        if (master) master.checked = checked;
+        updateTaskCount();
+    }
+
+    function selectCompletedTasks() {
+        document.querySelectorAll('.task-checkbox').forEach(cb => {
+            cb.checked = cb.getAttribute('data-completed') === 'true';
+        });
+        updateTaskCount();
+    }
+
+    function updateTaskCount() {
+        let taskCount = 0;
+        let imgCount = 0;
+        document.querySelectorAll('.task-checkbox:checked').forEach(cb => {
+            taskCount++;
+            imgCount += parseInt(cb.getAttribute('data-images') || '0', 10);
+        });
+
+        const elTasks = document.getElementById('selected-tasks-count');
+        const elImgs = document.getElementById('selected-images-count');
+        if (elTasks) elTasks.innerText = taskCount;
+        if (elImgs) elImgs.innerText = imgCount;
+
+        const btn = document.getElementById('btn-proceed-step3');
+        if (btn) btn.disabled = (taskCount === 0);
+    }
+
+    function validateTaskSelection() {
+        const count = document.querySelectorAll('.task-checkbox:checked').length;
+        if (count === 0) {
+            alert('Por favor, marque pelo menos uma tarefa antes de avançar para a próxima etapa.');
+            return false;
+        }
+
+        const step4 = document.getElementById('step-4-card');
+        if (step4 && step4.style.display !== 'none') {
+            const proceed = confirm("Você já havia avançado para a configuração do framework.\n\nDeseja reanalisar com as novas tarefas? Suas preferências de parâmetros (modelo, épocas, batch) serão mantidas.");
+            if (!proceed) {
+                return false;
+            }
+        }
+
+        if (typeof saveCurrentConfigToMemory === 'function') {
+            saveCurrentConfigToMemory();
+        }
+        return true;
+    }
+
+    document.querySelectorAll('.task-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateTaskCount);
+    });
+    updateTaskCount();
+
+    // Atualiza Stepper visual no topo
+    if (typeof setWizardStep === 'function') {
+        setWizardStep(2);
+    }
+</script>

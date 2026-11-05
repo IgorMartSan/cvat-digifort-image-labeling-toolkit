@@ -1,0 +1,520 @@
+<form id="train-start-form" onsubmit="handleStartTraining(event)">
+    <input type="hidden" name="project_id" value="{{ project_id }}">
+    {% for tid in task_ids %}
+    <input type="hidden" name="task_ids" value="{{ tid }}">
+    {% endfor %}
+
+    <!-- ===================================================================
+         ETAPA 3: ESCOLHA DO FRAMEWORK
+         =================================================================== -->
+    <div class="card-neutral mb-4" id="step-3-card">
+        <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center">
+                <span class="step-header-tag">3</span>
+                <span class="fw-bold">Escolha do Framework</span>
+            </div>
+            <span class="badge-clean-neutral">Tarefas Selecionadas: {{ task_ids | join(', ') }}</span>
+        </div>
+        <div class="p-3">
+            <p class="text-muted small mb-3">
+                Selecione o framework de visão computacional que será utilizado para treinar a rede neural.
+            </p>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-0">Framework de Treinamento:</label>
+                </div>
+                <div class="col-md-7">
+                    <select class="form-select" name="framework" id="train-framework">
+                        <option value="yolo11" selected>⚡ YOLO — Ultralytics (Recomendado)</option>
+                        <option value="rtdetr" disabled>🔮 RT-DETR — Transformers (Em Breve)</option>
+                        <option value="sam" disabled>✂️ SAM — Segment Anything (Em Breve)</option>
+                    </select>
+                    <div class="form-text small text-muted mt-1">
+                        Líder de mercado em performance e acurácia para Detecção de Objetos e Segmentação de Instâncias (YOLO11 / YOLOv8).
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showTrainingStep(2)">
+                    <span>⬅</span> Voltar para Tarefas (Passo 2)
+                </button>
+                <button type="button" class="btn-primary-dark d-flex align-items-center gap-2" onclick="showTrainingStep(4)">
+                    <span>Prosseguir para Configuração (Passo 4)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================
+         ETAPA 4: CONFIGURAÇÃO DO FRAMEWORK (Aparece após confirmar Etapa 3)
+         =================================================================== -->
+    <div class="card-neutral mb-4" id="step-4-card" style="display: none;">
+        <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center">
+                <span class="step-header-tag">4</span>
+                <span class="fw-bold">Configuração do Framework</span>
+            </div>
+            <span class="badge-clean-neutral">{{ stats.total_images }} Imagens no CVAT</span>
+        </div>
+        <div class="p-3">
+
+            <!-- Resumo Rápido das Anotações do Dataset -->
+            <div class="row g-2 mb-3">
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light text-center">
+                        <div class="text-muted small">Total de Imagens</div>
+                        <div class="fs-5 fw-bold text-dark">{{ stats.total_images }}</div>
+                        <div class="small text-muted">{{ stats.annotated_images }} anotadas / {{ stats.empty_images }} vazias</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light text-center">
+                        <div class="text-muted small">Retângulos</div>
+                        <div class="fs-5 fw-bold text-dark">{{ stats.rectangles }}</div>
+                        <div class="small text-muted">bounding boxes</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light text-center">
+                        <div class="text-muted small">Polígonos</div>
+                        <div class="fs-5 fw-bold text-dark">{{ stats.polygons }}</div>
+                        <div class="small text-muted">shapes segmentados</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-2 border rounded bg-light text-center">
+                        <div class="text-muted small">Frames Compatíveis</div>
+                        <div class="fs-5 fw-bold text-success">{{ stats.detection_compatible_frames }}</div>
+                        <div class="small text-muted">prontos para detecção</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Classes encontradas -->
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-muted text-uppercase mb-1">Classes Encontradas no CVAT:</label>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for label, count in stats.labels.items() %}
+                    <span class="badge bg-secondary-subtle text-dark border px-2 py-1">
+                        {{ label }}: <strong>{{ count }}</strong>
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- A. Conjunto de Imagens -->
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-uppercase text-muted d-block mb-2">
+                    A. Conjunto de Imagens do Treinamento:
+                </label>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="option-card-label">
+                            <input type="radio" name="train_all_images_choice" value="false" checked onchange="toggleImagesChoice(false)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="fs-5">🎯</span>
+                                    <span class="fw-bold text-dark">Apenas Imagens Marcadas / Anotadas</span>
+                                </div>
+                                <p class="text-muted small mb-1">
+                                    Utiliza somente as fotos com marcações válidas feitas no CVAT (<strong>{{ stats.annotated_images }}</strong> imagens).
+                                </p>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle small">Recomendado para Treino Focado</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="option-card-label">
+                            <input type="radio" name="train_all_images_choice" value="true" onchange="toggleImagesChoice(true)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="fs-5">🖼️</span>
+                                    <span class="fw-bold text-dark">Todas as Imagens da(s) Tarefa(s)</span>
+                                </div>
+                                <p class="text-muted small mb-1">
+                                    Inclui as imagens sem anotações (<strong>{{ stats.total_images }}</strong> imagens) como fotos de fundo negativo para diminuir falso-positivos.
+                                </p>
+                                <span class="badge bg-secondary-subtle text-secondary border small">Inclui Imagens Negativas</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- B. Escolha do Porte do Modelo YOLO -->
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-uppercase text-muted d-block mb-2">
+                    B. Porte e Arquitetura do Modelo:
+                </label>
+                <div class="row g-3">
+                    <!-- Pequeno (Nano) -->
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11n" checked onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Pequeno (Nano)</span>
+                                    <small class="text-muted">~2.6M params</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO11 Nano (yolo11n)</div>
+                                <p class="text-muted small mb-0">
+                                    Ultrarrápido, baixíssimo consumo de memória, ideal para CPU, Edge e validações rápidas.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Pequeno (Small) -->
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11s" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Pequeno (Small)</span>
+                                    <small class="text-muted">~9.4M params</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO11 Small (yolo11s)</div>
+                                <p class="text-muted small mb-0">
+                                    Mais preciso que o Nano mantendo excelente taxa de FPS em ambientes restritos.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Médio (Medium) -->
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11m" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Médio (Medium)</span>
+                                    <small class="text-muted">~20.1M params</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO11 Medium (yolo11m)</div>
+                                <p class="text-muted small mb-0">
+                                    O equilíbrio recomendado entre alta precisão e velocidade para câmeras industriais.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Grande (Large) -->
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11l" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Grande (Large)</span>
+                                    <small class="text-muted">~25.3M params</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO11 Large (yolo11l)</div>
+                                <p class="text-muted small mb-0">
+                                    Capacidade elevada para detalhes finos e objetos pequenos com GPU dedicada.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Extra (XLarge) -->
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11x" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Extra (XLarge)</span>
+                                    <small class="text-muted">~56.9M params</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO11 XLarge (yolo11x)</div>
+                                <p class="text-muted small mb-0">
+                                    Máxima capacidade de generalização e acurácia do estado-da-arte.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Modelos Anteriores Salvos Localmente -->
+                    {% if available_models %}
+                    <div class="col-md-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="custom_local" onchange="selectModelChoice('custom_local')">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-secondary-subtle text-dark border">Modelo Salvo</span>
+                                    <small class="text-muted">{{ available_models | length }} disponível(is)</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">Retreinar Modelo Salvo</div>
+                                <p class="text-muted small mb-0">
+                                    Continua o treino ou faz fine-tuning a partir de um checkpoint gerado anteriormente.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Seletor de Modelo Salvo Local (se selecionado) -->
+                {% if available_models %}
+                <div class="mt-3 p-3 border rounded bg-light" id="custom-model-selector" style="display: none;">
+                    <label class="form-label small fw-bold mb-1">Selecione o Checkpoint Salvo:</label>
+                    <select class="form-select" name="custom_weights" id="custom_weights_input">
+                        {% for m in available_models %}
+                        <option value="{{ m.checkpoint_path }}">
+                            {{ m.id }} - Projeto: {{ m.project_name }} ({{ m.mode }} - {{ m.epochs }} épocas)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- C. Parâmetros e Hiperparâmetros -->
+            <div>
+                <label class="form-label small fw-bold text-uppercase text-muted d-block mb-2">
+                    C. Hiperparâmetros de Treinamento:
+                </label>
+                <div class="row g-3">
+                    <!-- Modalidade -->
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Tipo de Treinamento</label>
+                        <select class="form-select" name="mode" id="train-mode" onchange="handleModeChange(this.value)">
+                            <option value="detection" selected>Detection (Bounding Boxes)</option>
+                            <option value="segmentation">Segmentation (Polígonos)</option>
+                        </select>
+                    </div>
+
+                    <!-- Derivar polígonos -->
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check mb-2" id="derive-polygons-container">
+                            <input class="form-check-input" type="checkbox" name="derive_polygons" id="derive_polygons" checked>
+                            <label class="form-check-label small" for="derive_polygons">
+                                Converter polígonos em Bounding Boxes
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Amostragem -->
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Limite de Imagens (Opcional)</label>
+                        <input type="number" class="form-control" name="sample_limit" placeholder="Todas (ou limite numérico)" min="2" max="{{ stats.detection_compatible_frames }}">
+                    </div>
+
+                    <!-- Épocas -->
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Épocas (Epochs)</label>
+                        <input type="number" class="form-control" name="epochs" value="100" min="1" max="1000">
+                    </div>
+
+                    <!-- Batch -->
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Batch Size</label>
+                        <input type="number" class="form-control" name="batch" value="16" min="-1">
+                    </div>
+
+                    <!-- Resolução -->
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Resolução (imgsz)</label>
+                        <input type="number" class="form-control" name="image_size" value="640" step="32" min="64">
+                    </div>
+
+                    <!-- Device -->
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Dispositivo</label>
+                        <select class="form-select" name="device">
+                            <option value="auto" selected>Auto (GPU se disponível)</option>
+                            <option value="cuda:0">CUDA GPU 0</option>
+                            <option value="cpu">CPU</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-3 flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showTrainingStep(3)">
+                    <span>⬅</span> Voltar para Framework (Passo 3)
+                </button>
+                <button type="button" class="btn-primary-dark d-flex align-items-center gap-2" onclick="showTrainingStep(5)">
+                    <span>Prosseguir para Treinamento (Passo 5)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===================================================================
+         ETAPA 5: TREINAMENTO (Aparece após confirmar Etapa 4)
+         =================================================================== -->
+    <div class="card-neutral mb-4" id="step-5-card" style="display: none;">
+        <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center">
+                <span class="step-header-tag">5</span>
+                <span class="fw-bold">Iniciar Treinamento</span>
+            </div>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">Configuração Concluída</span>
+        </div>
+        <div class="p-3">
+            <p class="text-muted small mb-3">
+                Revise os parâmetros definidos abaixo. Ao confirmar, o treinamento será enviado para a fila sequencial única de execução (FIFO) e o sistema redirecionará para a aba de acompanhamento em tempo real.
+            </p>
+
+            <!-- Resumo das Escolhas Feitas -->
+            <div class="p-3 rounded border bg-light mb-3">
+                <div class="fw-semibold text-dark small mb-2 text-uppercase">Resumo da Configuração:</div>
+                <div class="row g-2 small">
+                    <div class="col-md-3">
+                        <span class="text-muted">Framework:</span> <strong id="summary-framework" class="text-dark">YOLO11 (Ultralytics)</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Modelo:</span> <strong id="summary-model" class="text-dark">YOLO11 Nano</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Imagens:</span> <strong id="summary-images" class="text-dark">Apenas Anotadas</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Modalidade:</span> <strong id="summary-mode" class="text-dark">Detection</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Épocas:</span> <strong id="summary-epochs" class="text-dark">100</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Batch Size:</span> <strong id="summary-batch" class="text-dark">16</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Resolução:</span> <strong id="summary-imgsz" class="text-dark">640 px</strong>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="text-muted">Dispositivo:</span> <strong id="summary-device" class="text-dark">Auto (GPU/CPU)</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info py-2 px-3 small d-flex align-items-center gap-2 mb-3">
+                <span>ℹ️</span>
+                <span>Fila Sequencial: apenas 1 processo de GPU/treino executa por vez para garantir estabilidade e evitar travamentos por falta de memória.</span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
+                <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showTrainingStep(4)">
+                    <span>⬅</span> Voltar para Configuração (Passo 4)
+                </button>
+                <button type="submit" class="btn-primary-dark d-flex align-items-center gap-2 px-4 py-2" id="start-train-btn">
+                    <span class="fs-6">🚀 Iniciar Treinamento</span>
+                    <span class="badge bg-white text-primary small">Enviar para Fila</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</form>
+
+<script>
+    let selectedModelChoice = 'yolo11n';
+    let trainAllImages = false;
+
+    function toggleImagesChoice(val) {
+        trainAllImages = val;
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+    }
+
+    function selectModelChoice(val) {
+        selectedModelChoice = val;
+        const customSelector = document.getElementById('custom-model-selector');
+        if (customSelector) {
+            customSelector.style.display = (val === 'custom_local') ? 'block' : 'none';
+        }
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+    }
+
+    function handleModeChange(mode) {
+        const deriveContainer = document.getElementById('derive-polygons-container');
+        if (deriveContainer) {
+            deriveContainer.style.display = (mode === 'segmentation') ? 'none' : 'block';
+        }
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+    }
+
+    function advanceToStep4() {
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+        const step4 = document.getElementById('step-4-card');
+        if (step4) {
+            step4.style.display = 'block';
+            scrollToStep('step-4-card');
+            setWizardStep(4);
+        }
+    }
+
+    function updateStep5Summary() {
+        const form = document.getElementById('train-start-form');
+        if (!form) return;
+        const fd = new FormData(form);
+
+        // Framework
+        const fwEl = document.getElementById('summary-framework');
+        if (fwEl) fwEl.innerText = 'YOLO11 — Ultralytics';
+
+        // Modelo
+        const modelChoice = fd.get('model_name_choice') || 'yolo11n';
+        const modelNames = {
+            'yolo11n': 'YOLO11 Nano (~2.6M params)',
+            'yolo11s': 'YOLO11 Small (~9.4M params)',
+            'yolo11m': 'YOLO11 Medium (~20.1M params)',
+            'yolo11l': 'YOLO11 Large (~25.3M params)',
+            'yolo11x': 'YOLO11 XLarge (~56.9M params)',
+            'custom_local': 'Checkpoint Salvo'
+        };
+        const modelEl = document.getElementById('summary-model');
+        if (modelEl) modelEl.innerText = modelNames[modelChoice] || modelChoice;
+
+        // Imagens
+        const allImgs = fd.get('train_all_images_choice') === 'true';
+        const imgsEl = document.getElementById('summary-images');
+        if (imgsEl) imgsEl.innerText = allImgs ? 'Todas as Imagens (c/ Fundo Negativo)' : 'Apenas Imagens Anotadas';
+
+        // Modo
+        const mode = fd.get('mode') || 'detection';
+        const modeEl = document.getElementById('summary-mode');
+        if (modeEl) modeEl.innerText = mode === 'segmentation' ? 'Segmentation (Polígonos)' : 'Detection (Bounding Boxes)';
+
+        // Épocas, Batch, Imgsz, Dispositivo
+        const epochsEl = document.getElementById('summary-epochs');
+        if (epochsEl) epochsEl.innerText = fd.get('epochs') || '100';
+
+        const batchEl = document.getElementById('summary-batch');
+        if (batchEl) batchEl.innerText = fd.get('batch') || '16';
+
+        const imgszEl = document.getElementById('summary-imgsz');
+        if (imgszEl) imgszEl.innerText = (fd.get('image_size') || '640') + ' px';
+
+        const devEl = document.getElementById('summary-device');
+        const devVal = fd.get('device') || 'auto';
+        if (devEl) devEl.innerText = devVal === 'cuda:0' ? 'CUDA GPU 0' : (devVal === 'cpu' ? 'CPU' : 'Auto (GPU/CPU)');
+    }
+
+    function advanceToStep5() {
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+        updateStep5Summary();
+        const step5 = document.getElementById('step-5-card');
+        if (step5) {
+            step5.style.display = 'block';
+            scrollToStep('step-5-card');
+            setWizardStep(5);
+        }
+    }
+
+    // Ao carregar a análise, ativa a Etapa 3 (Framework) no stepper
+    if (typeof setWizardStep === 'function') {
+        setWizardStep(3);
+    }
+</script>

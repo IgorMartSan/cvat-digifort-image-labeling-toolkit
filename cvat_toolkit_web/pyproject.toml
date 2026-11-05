@@ -1,0 +1,20 @@
+[project]
+name = "cvat-toolkit-web"
+version = "0.1.0"
+description = "CVAT AI Toolkit Web - Interface Web para Treinamento e Auto-Anotação"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "jinja2>=3.1,<4",
+    "python-multipart>=0.0.9,<1",
+    "pydantic>=2.0,<3",
+    "cvat-sdk~=2.62.0",
+    "python-dotenv>=1.0,<2",
+    "ultralytics>=8.3,<9",
+    "pillow>=10,<13",
+]
+
+[tool.uv]
+package = false

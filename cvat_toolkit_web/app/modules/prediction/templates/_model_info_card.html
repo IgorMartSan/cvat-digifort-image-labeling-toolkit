@@ -1,0 +1,69 @@
+<div class="card-neutral p-3 mt-3 border bg-white shadow-sm" id="selected-model-details-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="fs-5">📦</span>
+            <h6 class="fw-bold mb-0 font-monospace text-dark">{{ m.id or m.run_name }}</h6>
+            <span class="badge bg-dark font-monospace">{{ (m.framework or 'yolo11')|upper }}</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                {% if m.mode == 'detection' %}🎯 Detecção{% elif m.mode == 'segmentation' %}🧩 Segmentação{% else %}{{ m.mode_label or m.mode }}{% endif %}
+            </span>
+            {% if m.has_weights or m.weights_size_mb %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                💾 best.pt ({{ m.size_mb or m.weights_size_mb }} MB)
+            </span>
+            {% endif %}
+        </div>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1"
+                    onclick="openModelDetails('{{ m.mode }}', '{{ m.run_name }}')">
+                <span>🔍</span> Inspecionar Pasta & Gráficos YOLO
+            </button>
+        </div>
+    </div>
+
+    <!-- Informações Resumidas em Cards -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-3 col-6">
+            <div class="bg-light p-2 rounded border small">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Projeto Origem CVAT</span>
+                <strong class="text-dark text-truncate d-block">{{ m.project_name or '-' }}</strong>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="bg-light p-2 rounded border small">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Data do Treinamento</span>
+                <span class="text-dark">{{ m.trained_at_formatted or m.trained_at[:10] or '-' }}</span>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="bg-light p-2 rounded border small">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Hiperparâmetros</span>
+                <span class="text-dark"><strong>{{ m.epochs }}</strong> épocas • batch <strong>{{ m.batch }}</strong></span>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="bg-light p-2 rounded border small">
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Melhor mAP50</span>
+                {% if m.map50 and m.map50 != '-' or m.best_map50 and m.best_map50 != '-' %}
+                <strong class="text-success">{{ m.map50 or m.best_map50 }}</strong>
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Classes Reconhecidas pelo Modelo -->
+    <div class="pt-2 border-top">
+        <span class="small fw-semibold text-secondary me-2">Classes do Modelo:</span>
+        {% if m.labels %}
+            {% for lbl in m.labels %}
+            <span class="badge bg-secondary-subtle text-dark border px-2 py-1 small me-1">
+                🏷️ {{ lbl }}
+            </span>
+            {% endfor %}
+        {% else %}
+            <span class="small text-muted">Classes serão detectadas automaticamente a partir do arquivo <code>best.pt</code>.</span>
+        {% endif %}
+    </div>
+</div>

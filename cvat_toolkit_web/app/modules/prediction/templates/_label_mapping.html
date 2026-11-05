@@ -1,0 +1,93 @@
+<!-- ETAPA 4: Mapeamento de Classes, Parâmetros e Executar -->
+<div class="card-neutral mb-4 p-3" id="step-4-card">
+    <div class="d-flex align-items-center mb-2">
+        <span class="step-header-tag">4</span>
+        <span class="fw-bold">Mapeamento de Classes & Executar Auto-Anotação</span>
+    </div>
+    <p class="text-muted small mb-3">
+        Associe cada classe detectada pelo modelo à label correspondente no CVAT e defina os parâmetros de confiança.
+    </p>
+
+    <form id="prediction-start-form" onsubmit="handleStartPrediction(event)">
+        <input type="hidden" name="model_checkpoint" id="hidden_model_checkpoint" value="{{ model_checkpoint }}">
+        <input type="hidden" name="destination_project_id" value="{{ destination_project_id }}">
+
+        <!-- Tabela de mapeamento -->
+        <div class="table-responsive border rounded mb-4">
+            <table class="table-clean mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 45%;">Classe Reconhecida pelo Modelo</th>
+                        <th style="width: 10%; text-align: center;"></th>
+                        <th style="width: 45%;">Label de Destino no CVAT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for src_id, src_name in source_classes.items() %}
+                    <tr>
+                        <td>
+                            <span class="badge bg-dark-subtle text-dark border px-2 py-1 font-monospace fw-bold">
+                                {{ src_name }}
+                            </span>
+                            <span class="text-muted small ms-1">(ID: {{ src_id }})</span>
+                        </td>
+                        <td class="text-center text-muted">➔</td>
+                        <td>
+                            <select class="form-select class-map-select" data-source-id="{{ src_id }}" required>
+                                <option value="" disabled {% if suggestions.get(src_id) is none %}selected{% endif %}>
+                                    Selecione a label correspondente no CVAT...
+                                </option>
+                                {% for dest_id, dest_name in destination_labels.items() %}
+                                <option value="{{ dest_id }}" {% if suggestions.get(src_id) == dest_id %}selected{% endif %}>
+                                    {{ dest_name }} (ID: {{ dest_id }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Parâmetros de Inferência -->
+        <div class="row g-3 align-items-center mb-4 p-3 bg-light rounded border">
+            <div class="col-md-6">
+                <label class="form-label small fw-semibold d-flex justify-content-between mb-1">
+                    <span>Limiar de Confiança (Confidence Threshold):</span>
+                    <span class="badge bg-primary font-monospace" id="conf-val-badge">0.50</span>
+                </label>
+                <input type="range" class="form-range" name="confidence" id="confidence-range" min="0.05" max="0.95" step="0.05" value="0.50" oninput="document.getElementById('conf-val-badge').innerText = parseFloat(this.value).toFixed(2)">
+                <div class="d-flex justify-content-between text-muted" style="font-size: 0.72rem;">
+                    <span>0.05 (Mais detecções)</span>
+                    <span>0.50</span>
+                    <span>0.95 (Alta certeza)</span>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="form-check form-switch mt-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="overwrite_auto" name="overwrite_auto">
+                    <label class="form-check-label small fw-medium" for="overwrite_auto">
+                        Substituir anotações automáticas anteriores
+                    </label>
+                </div>
+                <div class="text-muted mt-1" style="font-size: 0.78rem;">
+                    🛡️ Anotações manuais criadas por rotuladores humanos são sempre preservadas e protegidas.
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
+            <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showPredictionStep(3)">
+                <span>⬅</span> Voltar para Tarefas (Passo 3)
+            </button>
+            <div class="text-muted small">
+                A tarefa será inserida na fila global e executada pelo worker em segundo plano.
+            </div>
+            <button type="submit" class="btn btn-primary-dark d-flex align-items-center gap-2 px-4 py-2" id="start-pred-btn">
+                <span>🚀 Executar Auto-Anotação (Inserir na Fila)</span>
+            </button>
+        </div>
+    </form>
+</div>

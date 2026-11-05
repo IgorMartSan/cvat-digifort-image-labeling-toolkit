@@ -1,0 +1,526 @@
+{% extends "common/templates/base.html" %}
+{% from "common/templates/_stepper.html" import render_stepper %}
+
+{% block title %}Auto-Anotação & Inferência - CVAT AI Toolkit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Cabeçalho Principal -->
+        <div class="mb-3">
+            <h4 class="fw-bold mb-1">Auto-Anotação & Inferência com YOLO</h4>
+            <p class="text-muted small mb-0">
+                Fluxo guiado passo a passo para selecionar o modelo, definir o projeto de destino e anotar tarefas no CVAT.
+            </p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger py-2 small mb-3">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Stepper Visual Superior Reutilizável (4 Etapas Guiadas) -->
+        {{ render_stepper([
+            {"label": "Escolher Modelo", "icon": "📦"},
+            {"label": "Projeto Destino", "icon": "📁"},
+            {"label": "Marcar Tarefas", "icon": "📋"},
+            {"label": "Executar Auto-Anotação", "icon": "🚀"}
+        ], active_step=1, on_step_click="onStepperClick") }}
+
+        <!-- ETAPA 1: Escolher Modelo Treinado com Dropdown -->
+        <div class="card-neutral mb-4 p-3" id="step-1-card">
+            <div class="d-flex align-items-center mb-2">
+                <span class="step-header-tag">1</span>
+                <span class="fw-bold">Escolher o Modelo Treinado</span>
+            </div>
+            <p class="text-muted small mb-3">
+                Selecione o modelo treinado com os pesos salvos para utilizar na predição e auto-anotação.
+            </p>
+
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-0">Modelo Treinado (Pesos):</label>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" id="model-select" onchange="onModelSelect(this.value)">
+                        <option value="" disabled {% if not preselected_model_id %}selected{% endif %}>
+                            Selecione um modelo treinado...
+                        </option>
+                        {% for m in models %}
+                        <option value="{{ m.id }}"
+                                data-checkpoint="{{ m.checkpoint_path }}"
+                                data-mode="{{ m.mode }}"
+                                data-run-name="{{ m.run_name }}"
+                                {% if preselected_model_id == m.id %}selected{% endif %}>
+                            {{ m.id }} ({{ m.mode_label or m.mode|title }} - {{ (m.framework or 'yolo11')|upper }}) - {{ m.size_mb or m.weights_size_mb }} MB {% if m.map50 and m.map50 != '-' %}| mAP50: {{ m.map50 }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Informações Detalhadas do Modelo Escolhido (Injetado via Fetch) -->
+            <div id="model-info-container"></div>
+
+            <!-- Botão de Avanço da Etapa 1 para Etapa 2 -->
+            <div class="d-flex justify-content-end align-items-center pt-3 border-top mt-3" id="step-1-advance-container" style="display: none;">
+                <button type="button" class="btn btn-primary-dark d-flex align-items-center gap-2" onclick="showPredictionStep(2)">
+                    <span>Avançar para Projeto Destino (Passo 2)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ETAPA 2: Escolher Projeto de Destino no CVAT -->
+        <div class="card-neutral mb-4 p-3" id="step-2-card" style="display: none;">
+            <div class="d-flex align-items-center mb-2">
+                <span class="step-header-tag">2</span>
+                <span class="fw-bold">Escolher o Projeto CVAT de Destino</span>
+            </div>
+            <p class="text-muted small mb-3">
+                Selecione o projeto do CVAT que contém as tarefas que receberão as anotações geradas pelo modelo.
+            </p>
+
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-0">Projeto CVAT de Destino:</label>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" id="dest-project-select" onchange="onProjectSelect(this.value)">
+                        <option value="" disabled selected>Selecione o projeto onde deseja anotar...</option>
+                        {% for p in projects %}
+                        <option value="{{ p.id }}">{{ p.name }} (ID: {{ p.id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-3 flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showPredictionStep(1)">
+                    <span>⬅</span> Voltar para Modelo (Passo 1)
+                </button>
+                <button type="button" class="btn btn-primary-dark d-flex align-items-center gap-2" id="btn-step2-next" onclick="showPredictionStep(3)" style="display: none;">
+                    <span>Avançar para Marcar Tarefas (Passo 3)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ETAPA 3: Container de Tarefas Destino (injetado via Fetch/HTMX) -->
+        <div id="dest-tasks-container"></div>
+
+        <!-- ETAPA 4: Container de Mapeamento de Classes & Executar (injetado via Fetch/HTMX) -->
+        <div id="mapping-container"></div>
+
+        <!-- Painel de Progresso e Terminal em Tempo Real (opcional / quando executando) -->
+        <div class="card-neutral mb-4" id="pred-terminal-card" style="{% if not pred_status.is_running %}display: none;{% endif %}">
+            <div class="card-header-clean d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="spinner-grow spinner-grow-sm text-primary" role="status" id="pred-live-indicator"></span>
+                    <span class="fw-semibold">Terminal de Execução da Auto-Anotação</span>
+                </div>
+                <span class="badge-clean-neutral" id="pred-task-label">{{ pred_status.current_task or 'Aguardando...' }}</span>
+            </div>
+            <div class="p-3">
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-3">
+                        <div class="border rounded p-2 bg-light">
+                            <div class="text-muted small">Processados</div>
+                            <div class="fs-5 fw-bold" id="stat-processed">{{ pred_status.processed }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2 bg-light">
+                            <div class="text-muted small">Objetos Detectados</div>
+                            <div class="fs-5 fw-bold text-primary" id="stat-objects">{{ pred_status.objects }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2 bg-light">
+                            <div class="text-muted small">Shapes Enviados</div>
+                            <div class="fs-5 fw-bold text-success" id="stat-sent">{{ pred_status.sent }}</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="border rounded p-2 bg-light">
+                            <div class="text-muted small">Ignorados / Protegidos</div>
+                            <div class="fs-5 fw-bold text-secondary" id="stat-skipped">{{ pred_status.skipped }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="pred-progress-bar" role="progressbar" style="width: {{ pred_status.percent }}%;" aria-valuenow="{{ pred_status.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <div class="terminal-dots">
+                            <span class="terminal-dot dot-red"></span>
+                            <span class="terminal-dot dot-yellow"></span>
+                            <span class="terminal-dot dot-green"></span>
+                        </div>
+                        <span class="small text-muted">prediction_worker.log</span>
+                        <div></div>
+                    </div>
+                    <div class="terminal-body" id="pred-terminal-output">
+                        <div class="log-line-time">Pronto para receber logs...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Container do Modal Dinâmico de Detalhes do YOLO -->
+<div id="model-detail-modal-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let predSSE = null;
+
+    // --- Gerenciamento do Stepper Visual e Alternância de Formulários ---
+    function setWizardStep(stepNum, totalSteps = 4) {
+        for (let i = 1; i <= totalSteps; i++) {
+            const nav = document.getElementById(`step-nav-${i}`);
+            if (!nav) continue;
+            nav.classList.remove('active', 'completed');
+            if (i < stepNum) {
+                nav.classList.add('completed');
+            } else if (i === stepNum) {
+                nav.classList.add('active');
+            }
+        }
+        // Colore e destaca a seta ao passar para a próxima etapa
+        for (let i = 1; i < totalSteps; i++) {
+            const arrow = document.getElementById(`step-arrow-${i}`);
+            if (arrow) {
+                if (stepNum > i) {
+                    arrow.classList.add('completed');
+                } else {
+                    arrow.classList.remove('completed');
+                }
+            }
+        }
+    }
+
+    function showPredictionStep(stepNum) {
+        const s1 = document.getElementById('step-1-card');
+        const s2 = document.getElementById('step-2-card');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+
+        // Validação de pré-requisitos para pular etapas para frente
+        if (stepNum >= 2) {
+            const modelSelect = document.getElementById('model-select');
+            if (!modelSelect || !modelSelect.value) {
+                alert('Por favor, selecione primeiro um modelo treinado na Etapa 1.');
+                return showPredictionStep(1);
+            }
+        }
+        if (stepNum >= 3 && !s3) {
+            const destProj = document.getElementById('dest-project-select');
+            if (!destProj || !destProj.value) {
+                alert('Por favor, selecione o projeto de destino na Etapa 2.');
+                return showPredictionStep(2);
+            }
+        }
+        if (stepNum >= 4 && !s4) {
+            alert('Por favor, marque as tarefas na Etapa 3 e avance para o mapeamento.');
+            return showPredictionStep(s3 ? 3 : 2);
+        }
+
+        // Mostra APENAS o formulário da etapa atual
+        if (s1) s1.style.display = (stepNum === 1) ? 'block' : 'none';
+        if (s2) s2.style.display = (stepNum === 2) ? 'block' : 'none';
+        if (s3) s3.style.display = (stepNum === 3) ? 'block' : 'none';
+        if (s4) s4.style.display = (stepNum === 4) ? 'block' : 'none';
+
+        setWizardStep(stepNum, 4);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function onStepperClick(stepNum) {
+        showPredictionStep(stepNum);
+    }
+
+    // --- Passo 1: Selecionar Modelo Treinado ---
+    async function onModelSelect(modelId) {
+        if (!modelId) return;
+
+        const infoContainer = document.getElementById('model-info-container');
+        const advanceBtn = document.getElementById('step-1-advance-container');
+        if (!infoContainer) return;
+
+        infoContainer.innerHTML = `
+            <div class="p-3 text-center text-muted">
+                <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                <span>Carregando informações do modelo ${modelId}...</span>
+            </div>
+        `;
+
+        try {
+            const resp = await fetch(`/prediction/model-info?model_id=${encodeURIComponent(modelId)}`);
+            if (resp.ok) {
+                const html = await resp.text();
+                infoContainer.innerHTML = html;
+                if (advanceBtn) advanceBtn.style.display = 'flex';
+                setWizardStep(1, 4);
+            } else {
+                infoContainer.innerHTML = `<div class="alert alert-warning py-2 mt-2 small">Não foi possível carregar os detalhes do modelo selecionado.</div>`;
+            }
+        } catch (e) {
+            infoContainer.innerHTML = `<div class="alert alert-danger py-2 mt-2 small">Erro de conexão: ${e}</div>`;
+        }
+    }
+
+    // --- Passo 2: Selecionar Projeto CVAT de Destino ---
+    async function onProjectSelect(projectId) {
+        if (!projectId) return;
+
+        const tasksContainer = document.getElementById('dest-tasks-container');
+        const mappingContainer = document.getElementById('mapping-container');
+        if (mappingContainer) mappingContainer.innerHTML = '';
+
+        if (!tasksContainer) return;
+
+        tasksContainer.innerHTML = `
+            <div class="card-neutral p-4 text-center text-muted mb-4" id="step-3-card">
+                <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                <span>Buscando tarefas do projeto #${projectId} no CVAT...</span>
+            </div>
+        `;
+        showPredictionStep(3);
+
+        try {
+            const resp = await fetch(`/prediction/tasks?project_id=${encodeURIComponent(projectId)}`);
+            if (resp.ok) {
+                const html = await resp.text();
+                tasksContainer.innerHTML = html;
+                showPredictionStep(3);
+                const nextBtn = document.getElementById('btn-step2-next');
+                if (nextBtn) nextBtn.style.display = 'inline-flex';
+            } else {
+                tasksContainer.innerHTML = `<div class="alert alert-danger py-2 mb-4 small" id="step-3-card">Erro ao carregar tarefas do projeto.</div>`;
+            }
+        } catch (e) {
+            tasksContainer.innerHTML = `<div class="alert alert-danger py-2 mb-4 small" id="step-3-card">Falha na comunicação: ${e}</div>`;
+        }
+    }
+
+    // --- Passo 3 ➔ Passo 4: Avançar para Mapeamento de Classes ---
+    async function requestLabelMapping() {
+        const modelSelect = document.getElementById('model-select');
+        const modelId = modelSelect ? modelSelect.value : null;
+
+        const projectSelect = document.getElementById('dest-project-select');
+        const projectId = projectSelect ? projectSelect.value : null;
+
+        const checkedTasks = document.querySelectorAll('.dest-task-checkbox:checked');
+
+        if (!modelId) {
+            alert('Por favor, selecione um modelo treinado na Etapa 1.');
+            return showPredictionStep(1);
+        }
+
+        if (!projectId) {
+            alert('Por favor, selecione um projeto de destino na Etapa 2.');
+            return showPredictionStep(2);
+        }
+
+        if (checkedTasks.length === 0) {
+            alert('Por favor, marque pelo menos uma tarefa na Etapa 3 para ser anotada.');
+            return;
+        }
+
+        const mappingContainer = document.getElementById('mapping-container');
+        if (!mappingContainer) return;
+
+        mappingContainer.innerHTML = `
+            <div class="card-neutral p-4 text-center text-muted mb-4" id="step-4-card">
+                <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                <span>Obtendo classes do modelo e labels do projeto para mapeamento...</span>
+            </div>
+        `;
+        showPredictionStep(4);
+
+        const formData = new FormData();
+        formData.append('model_checkpoint', modelId);
+        formData.append('destination_project_id', projectId);
+
+        try {
+            const resp = await fetch('/prediction/mapping', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (resp.ok) {
+                const html = await resp.text();
+                mappingContainer.innerHTML = html;
+                showPredictionStep(4);
+            } else {
+                const errText = await resp.text();
+                mappingContainer.innerHTML = `<div class="alert alert-danger py-2 mb-4 small" id="step-4-card">Erro ao carregar mapeamento de classes: ${errText}</div>`;
+            }
+        } catch (e) {
+            mappingContainer.innerHTML = `<div class="alert alert-danger py-2 mb-4 small" id="step-4-card">Falha na requisição: ${e}</div>`;
+        }
+    }
+
+    // --- Passo 4: Executar Inferência e Inserir na Fila ---
+    async function handleStartPrediction(event) {
+        event.preventDefault();
+
+        const modelSelect = document.getElementById('model-select');
+        const modelId = modelSelect ? modelSelect.value : null;
+
+        const projectSelect = document.getElementById('dest-project-select');
+        const projectId = parseInt(projectSelect ? projectSelect.value : '0');
+
+        const taskCheckboxes = document.querySelectorAll('.dest-task-checkbox:checked');
+        const taskIds = Array.from(taskCheckboxes).map(cb => parseInt(cb.value));
+
+        if (!modelId) {
+            alert('Selecione o modelo na Etapa 1.');
+            return showPredictionStep(1);
+        }
+
+        if (!projectId) {
+            alert('Selecione o projeto na Etapa 2.');
+            return showPredictionStep(2);
+        }
+
+        if (!taskIds.length) {
+            alert('Selecione pelo menos uma tarefa de destino na Etapa 3.');
+            return showPredictionStep(3);
+        }
+
+        // Mapeamento de classes
+        const classMap = {};
+        const selects = document.querySelectorAll('.class-map-select');
+        for (const sel of selects) {
+            const srcId = parseInt(sel.dataset.sourceId);
+            const destId = parseInt(sel.value);
+            if (isNaN(destId)) {
+                alert('Defina o mapeamento de todas as classes do modelo antes de iniciar.');
+                sel.focus();
+                return;
+            }
+            classMap[srcId] = destId;
+        }
+
+        const confidence = parseFloat(document.getElementById('confidence-range').value || '0.50');
+        const overwriteAuto = document.getElementById('overwrite_auto') ? document.getElementById('overwrite_auto').checked : false;
+
+        const payload = {
+            model_checkpoint: modelId,
+            destination_project_id: projectId,
+            task_ids: taskIds,
+            class_map: classMap,
+            confidence: confidence,
+            overwrite_auto: overwriteAuto
+        };
+
+        const btn = document.getElementById('start-pred-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Inserindo na Fila de Tarefas...`;
+        }
+
+        try {
+            const resp = await fetch('/prediction/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                alert('Erro ao iniciar auto-anotação: ' + (err.detail || 'Falha na requisição'));
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>🚀 Executar Auto-Anotação (Inserir na Fila)</span>`;
+                }
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+                return;
+            }
+
+            startPredSSEListening();
+            document.getElementById('pred-terminal-card').scrollIntoView({ behavior: 'smooth' });
+
+        } catch (e) {
+            alert('Falha na conexão: ' + e);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>🚀 Executar Auto-Anotação (Inserir na Fila)</span>`;
+            }
+        }
+    }
+
+    // --- Modal com Pasta e Gráficos do Treino YOLO ---
+    async function openModelDetails(mode, runName) {
+        const container = document.getElementById('model-detail-modal-container');
+        if (!container) return;
+
+        const spinnerHtml = `
+            <div class="modal fade show" style="display: block; background: rgba(0,0,0,0.3);" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content text-center p-4">
+                        <div class="spinner-border text-primary mx-auto mb-3" role="status"></div>
+                        <div class="fw-semibold">Carregando informações e gráficos do treino YOLO...</div>
+                        <div class="text-muted small mt-1 font-monospace">${mode}/${runName}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = spinnerHtml;
+
+        try {
+            const resp = await fetch(`/training/models/${mode}/${runName}/details`);
+            if (!resp.ok) {
+                container.innerHTML = '';
+                alert(`Erro ao carregar detalhes (${resp.status}): ${resp.statusText}`);
+                return;
+            }
+
+            const html = await resp.text();
+            container.innerHTML = html;
+
+            const modalEl = document.getElementById('modelDetailModal');
+            if (modalEl) {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    container.innerHTML = '';
+                }, { once: true });
+            }
+        } catch (e) {
+            container.innerHTML = '';
+            alert('Falha na comunicação: ' + e);
+        }
+    }
+
+    // Inicialização da etapa 1 no carregamento
+    document.addEventListener('DOMContentLoaded', function () {
+        showPredictionStep(1);
+
+        const modelSelect = document.getElementById('model-select');
+        if (modelSelect && modelSelect.value) {
+            onModelSelect(modelSelect.value);
+        }
+    });
+
+    {% if pred_status.is_running %}
+    startPredSSEListening();
+    {% endif %}
+</script>
+{% endblock %}

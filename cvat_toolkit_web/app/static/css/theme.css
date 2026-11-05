@@ -1,0 +1,566 @@
+/* ==========================================================================
+   CVAT AI Toolkit - Neutral Modern Slate Theme
+   ========================================================================== */
+
+:root {
+  --bg-app: #f8fafc;
+  --surface-card: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-focus: #3b82f6;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --primary-accent: #2563eb;       /* Azul moderno (estilo Tailwind/Stripe) */
+  --primary-hover: #1d4ed8;        /* Azul hover */
+  --terminal-bg: #0b0f19;
+  --terminal-text: #e2e8f0;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Navbar */
+.navbar-custom {
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.brand-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  font-size: 1.15rem;
+}
+
+.nav-tab-link {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.15s ease-in-out;
+}
+
+.nav-tab-link:hover {
+  color: var(--text-main);
+  background-color: #f1f5f9;
+}
+
+.nav-tab-link.active {
+  color: #ffffff;
+  background-color: var(--primary-accent);
+}
+
+/* Cards & Surfaces */
+.card-neutral {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.card-header-clean {
+  background: transparent;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* Modern Form Controls */
+.form-control {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  padding: 0.45rem 0.75rem;
+}
+
+.form-select {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  padding: 0.45rem 2.5rem 0.45rem 0.75rem;
+  background-position: right 0.75rem center;
+}
+
+.form-select-sm {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  padding-left: 0.65rem;
+  padding-right: 2.25rem !important;
+  font-size: 0.85rem;
+  background-position: right 0.65rem center;
+}
+
+.form-select:focus, .form-control:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Custom Buttons */
+.btn-primary-dark {
+  background-color: var(--primary-accent);
+  color: #ffffff;
+  border: 1px solid var(--primary-accent);
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 0.5rem 1.1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-primary-dark:hover, .btn-primary-dark:focus {
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+}
+
+.btn-secondary-clean {
+  background-color: #ffffff;
+  color: var(--text-main);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+.btn-secondary-clean:hover {
+  background-color: #f1f5f9;
+  color: var(--text-main);
+}
+
+/* Modern Table */
+.table-clean {
+  width: 100%;
+  margin-bottom: 0;
+  font-size: 0.88rem;
+}
+
+.table-clean th {
+  background-color: #f8fafc;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table-clean td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+  color: var(--text-main);
+}
+
+.table-clean tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* Badges */
+.badge-clean-success {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+  border-radius: 4px;
+}
+
+.badge-clean-neutral {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+  border-radius: 4px;
+}
+
+/* Terminal Console (Live SSE) */
+.terminal-window {
+  background-color: var(--terminal-bg);
+  color: var(--terminal-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  overflow: hidden;
+}
+
+.terminal-header {
+  background-color: #0f172a;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot-red { background-color: #ef4444; }
+.dot-yellow { background-color: #f59e0b; }
+.dot-green { background-color: #10b981; }
+
+.terminal-body {
+  padding: 1rem;
+  height: 280px;
+  overflow-y: auto;
+  line-height: 1.55;
+}
+
+.log-line-epoch {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.log-line-success {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.log-line-error {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.log-line-time {
+  color: #64748b;
+  margin-right: 8px;
+}
+
+/* HTMX Loading Indicator */
+.htmx-indicator {
+  display: none;
+}
+.htmx-request .htmx-indicator {
+  display: inline-block;
+}
+.htmx-request.htmx-indicator {
+  display: inline-block;
+}
+
+/* ==========================================================================
+   Wizard Stepper & Interactive Step Cards
+   ========================================================================== */
+.stepper-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.stepper-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+}
+
+.stepper-step:hover {
+  color: var(--text-main);
+}
+
+.stepper-step.active {
+  color: var(--primary-accent);
+  font-weight: 600;
+}
+
+.stepper-step.completed {
+  color: #059669;
+}
+
+.stepper-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: #f1f5f9;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stepper-step.active .stepper-num {
+  background-color: var(--primary-accent);
+  color: #ffffff;
+}
+
+.stepper-step.completed .stepper-num {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.stepper-arrow {
+  color: #94a3b8;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.25s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  user-select: none;
+}
+
+.stepper-arrow.completed, .stepper-arrow.active {
+  color: var(--primary-accent);
+  transform: scale(1.15);
+  text-shadow: 0 0 10px rgba(37, 99, 235, 0.35);
+}
+
+/* Radio Option Cards (Model Selection & Images Selection) */
+.option-card-label {
+  display: block;
+  cursor: pointer;
+  height: 100%;
+}
+
+.option-card-label input[type="radio"],
+.option-card-label input[type="checkbox"] {
+  display: none;
+}
+
+.option-card {
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  height: 100%;
+  background-color: var(--surface-card);
+  transition: all 0.15s ease-in-out;
+  position: relative;
+}
+
+.option-card:hover {
+  border-color: #93c5fd;
+  background-color: #f8fafc;
+}
+
+.option-card-label input:checked + .option-card {
+  border-color: var(--primary-accent);
+  background-color: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.option-card-check-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: transparent;
+}
+
+.option-card-label input:checked + .option-card .option-card-check-icon {
+  background-color: var(--primary-accent);
+  border-color: var(--primary-accent);
+  color: #ffffff;
+}
+
+.step-header-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--primary-accent);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-right: 8px;
+}
+
+/* ==========================================================================
+   Custom Card Dropdown Menus (Modern Rich Select Component)
+   ========================================================================== */
+.custom-card-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.custom-card-dropdown .dropdown-trigger {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.65rem 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.custom-card-dropdown .dropdown-trigger:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.custom-card-dropdown.is-open .dropdown-trigger {
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background-color: #ffffff;
+}
+
+.custom-card-dropdown .trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  text-align: left;
+}
+
+.custom-card-dropdown .trigger-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background-color: #f1f5f9;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.custom-card-dropdown .trigger-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.custom-card-dropdown .trigger-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-main);
+}
+
+.custom-card-dropdown .trigger-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 460px;
+}
+
+.custom-card-dropdown .dropdown-chevron {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease-in-out;
+  margin-left: 0.75rem;
+  flex-shrink: 0;
+}
+
+.custom-card-dropdown.is-open .dropdown-chevron {
+  transform: rotate(180deg);
+  color: var(--primary-accent);
+}
+
+/* Floating Downward Menu */
+.custom-card-dropdown .dropdown-cards-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1060;
+  background-color: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+  max-height: 340px;
+  overflow-y: auto;
+  display: none;
+}
+
+.custom-card-dropdown.is-open .dropdown-cards-menu {
+  display: block;
+  animation: dropdownFadeDown 0.15s ease-out;
+}
+
+@keyframes dropdownFadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Individual Option Cards in Dropdown */
+.dropdown-option-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: all 0.15s ease-in-out;
+  text-align: left;
+}
+
+.dropdown-option-card:last-child {
+  margin-bottom: 0;
+}
+
+.dropdown-option-card:hover:not(.disabled) {
+  background-color: #f8fafc;
+  border-color: #93c5fd;
+}
+
+.dropdown-option-card.selected {
+  background-color: #eff6ff;
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 0 1px var(--primary-accent);
+}
+
+.dropdown-option-card.disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+  border-style: dashed;
+}

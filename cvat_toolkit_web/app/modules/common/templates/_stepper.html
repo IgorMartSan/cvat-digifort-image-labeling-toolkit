@@ -1,0 +1,17 @@
+{# Componente Reutilizável de Stepper / Passos Guiados #}
+{% macro render_stepper(steps, active_step=1, stepper_id='wizard-stepper', on_step_click='onStepperClick') %}
+<div class="stepper-nav" id="{{ stepper_id }}">
+    {% for step in steps %}
+    <div class="stepper-step {% if loop.index == active_step %}active{% elif loop.index < active_step %}completed{% endif %}"
+         id="step-nav-{{ loop.index }}"
+         onclick="{{ on_step_click }}({{ loop.index }})"
+         title="Ir para etapa {{ loop.index }}: {{ step.label }}">
+        <span class="stepper-num" id="step-num-{{ loop.index }}">{{ loop.index }}</span>
+        <span>{% if step.icon %}{{ step.icon }} {% endif %}{{ step.label }}</span>
+    </div>
+    {% if not loop.last %}
+    <span class="stepper-arrow {% if loop.index < active_step %}completed{% endif %}" id="step-arrow-{{ loop.index }}" title="Avançar para etapa {{ loop.index + 1 }}">➔</span>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endmacro %}

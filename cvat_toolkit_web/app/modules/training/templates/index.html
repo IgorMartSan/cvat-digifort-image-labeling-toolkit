@@ -1,0 +1,411 @@
+{% extends "common/templates/base.html" %}
+{% from "common/templates/_stepper.html" import render_stepper %}
+
+{% block title %}Treinamento de Modelos - CVAT AI Toolkit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="mb-3">
+            <h4 class="fw-bold mb-1">Treinamento de Modelos YOLO</h4>
+            <p class="text-muted small mb-0">Fluxo guiado passo a passo para compor dataset, escolher o modelo e monitorar o treino</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger py-2 small mb-3">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Stepper Visual Superior Reutilizável (5 Etapas) -->
+        {{ render_stepper([
+            {"label": "Projeto CVAT", "icon": "📁"},
+            {"label": "Marcar Tarefas", "icon": "📋"},
+            {"label": "Framework", "icon": "⚡"},
+            {"label": "Configuração", "icon": "⚙️"},
+            {"label": "Treinamento", "icon": "🚀"}
+        ], active_step=1, on_step_click="onStepperClick") }}
+
+        <!-- ETAPA 1: Marcar o Projeto de Origem -->
+        <div class="card-neutral mb-4 p-3" id="step-1-card">
+            <div class="d-flex align-items-center mb-2">
+                <span class="step-header-tag">1</span>
+                <span class="fw-bold">Marcar o Projeto CVAT de Origem</span>
+            </div>
+            <p class="text-muted small mb-3">
+                Selecione o projeto do CVAT que contém as tarefas anotadas para compor o dataset de treino.
+            </p>
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-0">Projeto CVAT de Origem:</label>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" name="project_id" id="project-select" hx-get="/training/tasks" hx-target="#tasks-container" hx-indicator="#global-spinner">
+                        <option value="" disabled selected>Selecione um projeto...</option>
+                        {% for p in projects %}
+                        <option value="{{ p.id }}">{{ p.name }} (ID: {{ p.id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Botão de Avanço do Passo 1 para Passo 2 (exibido quando um projeto já foi carregado) -->
+            <div class="d-flex justify-content-end align-items-center pt-3 border-top mt-3" id="step-1-advance-container" style="display: none;">
+                <button type="button" class="btn btn-primary-dark d-flex align-items-center gap-2" onclick="showTrainingStep(2)">
+                    <span>Avançar para Marcar Tarefas (Passo 2)</span>
+                    <span>➔</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ETAPA 2: Container de Tarefas (preenchido por HTMX) -->
+        <div id="tasks-container"></div>
+
+        <!-- ETAPA 3, 4, 5: Containers injetados via HTMX -->
+        <div id="analysis-container"></div>
+
+        <!-- ETAPA 5: Terminal ao Vivo de Execução (SSE) -->
+        <div class="card-neutral mb-4" id="step-5-terminal" style="{% if not train_status.is_running %}display: none;{% endif %}">
+            <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center">
+                    <span class="step-header-tag">5</span>
+                    <span class="spinner-grow spinner-grow-sm text-success me-2" role="status" id="live-indicator"></span>
+                    <span class="fw-semibold">Terminal de Treinamento em Tempo Real</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge-clean-neutral" id="epoch-counter">Época: {{ train_status.current_epoch }}/{{ train_status.total_epochs }}</span>
+                    <span class="badge-clean-neutral" id="loss-badge">Loss: {{ train_status.last_loss }}</span>
+                    <span class="badge-clean-neutral" id="map-badge">mAP50: {{ train_status.last_map50 }}</span>
+                </div>
+            </div>
+            <div class="p-3">
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="train-progress-bar" role="progressbar" style="width: {{ train_status.percent }}%;" aria-valuenow="{{ train_status.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <div class="terminal-dots">
+                            <span class="terminal-dot dot-red"></span>
+                            <span class="terminal-dot dot-yellow"></span>
+                            <span class="terminal-dot dot-green"></span>
+                        </div>
+                        <span class="small text-muted">train_worker.log</span>
+                        <div></div>
+                    </div>
+                    <div class="terminal-body" id="train-terminal-output">
+                        <div class="log-line-time">Aguardando início do treinamento...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let trainingSSE = null;
+    let currentProjectId = '';
+
+    // Cache persistente de configurações de treinamento na memória do navegador
+    let savedTrainingConfig = {
+        framework: 'yolo11',
+        train_all_images_choice: 'false',
+        model_name_choice: 'yolo11n',
+        custom_weights: '',
+        mode: 'detection',
+        derive_polygons: true,
+        sample_limit: '',
+        epochs: '100',
+        batch: '16',
+        image_size: '640',
+        device: 'auto'
+    };
+
+    function saveCurrentConfigToMemory() {
+        const form = document.getElementById('train-start-form');
+        if (!form) return;
+        const fd = new FormData(form);
+        savedTrainingConfig.framework = fd.get('framework') || savedTrainingConfig.framework;
+        savedTrainingConfig.train_all_images_choice = fd.get('train_all_images_choice') || savedTrainingConfig.train_all_images_choice;
+        savedTrainingConfig.model_name_choice = fd.get('model_name_choice') || savedTrainingConfig.model_name_choice;
+        savedTrainingConfig.custom_weights = fd.get('custom_weights') || savedTrainingConfig.custom_weights;
+        savedTrainingConfig.mode = fd.get('mode') || savedTrainingConfig.mode;
+        savedTrainingConfig.derive_polygons = form.querySelector('[name="derive_polygons"]')?.checked ?? true;
+        savedTrainingConfig.sample_limit = fd.get('sample_limit') || '';
+        savedTrainingConfig.epochs = fd.get('epochs') || savedTrainingConfig.epochs;
+        savedTrainingConfig.batch = fd.get('batch') || savedTrainingConfig.batch;
+        savedTrainingConfig.image_size = fd.get('image_size') || savedTrainingConfig.image_size;
+        savedTrainingConfig.device = fd.get('device') || savedTrainingConfig.device;
+    }
+
+    function restoreConfigFromMemory() {
+        const form = document.getElementById('train-start-form');
+        if (!form) return;
+
+        if (savedTrainingConfig.framework) {
+            const fw = form.querySelector('[name="framework"]');
+            if (fw) fw.value = savedTrainingConfig.framework;
+        }
+        if (savedTrainingConfig.train_all_images_choice) {
+            const radio = form.querySelector(`input[name="train_all_images_choice"][value="${savedTrainingConfig.train_all_images_choice}"]`);
+            if (radio) {
+                radio.checked = true;
+                if (typeof toggleImagesChoice === 'function') toggleImagesChoice(savedTrainingConfig.train_all_images_choice === 'true');
+            }
+        }
+        if (savedTrainingConfig.model_name_choice) {
+            const radio = form.querySelector(`input[name="model_name_choice"][value="${savedTrainingConfig.model_name_choice}"]`);
+            if (radio) {
+                radio.checked = true;
+                if (typeof selectModelChoice === 'function') selectModelChoice(savedTrainingConfig.model_name_choice);
+            }
+        }
+        if (savedTrainingConfig.custom_weights) {
+            const sel = form.querySelector('[name="custom_weights"]');
+            if (sel) sel.value = savedTrainingConfig.custom_weights;
+        }
+        if (savedTrainingConfig.mode) {
+            const sel = form.querySelector('[name="mode"]');
+            if (sel) {
+                sel.value = savedTrainingConfig.mode;
+                if (typeof handleModeChange === 'function') handleModeChange(savedTrainingConfig.mode);
+            }
+        }
+        const poly = form.querySelector('[name="derive_polygons"]');
+        if (poly) poly.checked = savedTrainingConfig.derive_polygons;
+
+        if (savedTrainingConfig.sample_limit) {
+            const sl = form.querySelector('[name="sample_limit"]');
+            if (sl) sl.value = savedTrainingConfig.sample_limit;
+        }
+        if (savedTrainingConfig.epochs) {
+            const ep = form.querySelector('[name="epochs"]');
+            if (ep) ep.value = savedTrainingConfig.epochs;
+        }
+        if (savedTrainingConfig.batch) {
+            const bt = form.querySelector('[name="batch"]');
+            if (bt) bt.value = savedTrainingConfig.batch;
+        }
+        if (savedTrainingConfig.image_size) {
+            const is = form.querySelector('[name="image_size"]');
+            if (is) is.value = savedTrainingConfig.image_size;
+        }
+        if (savedTrainingConfig.device) {
+            const dv = form.querySelector('[name="device"]');
+            if (dv) dv.value = savedTrainingConfig.device;
+        }
+    }
+
+    function scrollToStep(elementId) {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function setWizardStep(stepNum, totalSteps = 5) {
+        for (let i = 1; i <= totalSteps; i++) {
+            const nav = document.getElementById(`step-nav-${i}`);
+            if (!nav) continue;
+            nav.classList.remove('active', 'completed');
+            if (i < stepNum) {
+                nav.classList.add('completed');
+            } else if (i === stepNum) {
+                nav.classList.add('active');
+            }
+        }
+        // Colore a seta de avanço ao passar para a próxima etapa
+        for (let i = 1; i < totalSteps; i++) {
+            const arrow = document.getElementById(`step-arrow-${i}`);
+            if (arrow) {
+                if (stepNum > i) {
+                    arrow.classList.add('completed');
+                } else {
+                    arrow.classList.remove('completed');
+                }
+            }
+        }
+    }
+
+    function showTrainingStep(stepNum) {
+        if (typeof saveCurrentConfigToMemory === 'function') {
+            saveCurrentConfigToMemory();
+        }
+
+        const s1 = document.getElementById('step-1-card');
+        const s2 = document.getElementById('step-2-card');
+        const s3 = document.getElementById('step-3-card');
+        const s4 = document.getElementById('step-4-card');
+        const s5 = document.getElementById('step-5-card');
+
+        // Validação de pré-requisitos para pular etapas para frente
+        if (stepNum >= 2 && !s2) {
+            alert('Por favor, selecione primeiro um Projeto CVAT na Etapa 1.');
+            return showTrainingStep(1);
+        }
+        if (stepNum >= 3 && !s3) {
+            alert('Por favor, marque as tarefas na Etapa 2 e clique em "Prosseguir para Framework".');
+            return showTrainingStep(s2 ? 2 : 1);
+        }
+        if (stepNum >= 4 && !s4) {
+            alert('Por favor, confirme o Framework na Etapa 3 primeiro.');
+            return showTrainingStep(s3 ? 3 : (s2 ? 2 : 1));
+        }
+        if (stepNum >= 5 && !s5) {
+            alert('Por favor, confirme as configurações na Etapa 4 primeiro.');
+            return showTrainingStep(s4 ? 4 : (s3 ? 3 : 1));
+        }
+
+        // Mostra APENAS o formulário da etapa atual
+        if (s1) s1.style.display = (stepNum === 1) ? 'block' : 'none';
+        if (s2) s2.style.display = (stepNum === 2) ? 'block' : 'none';
+        if (s3) s3.style.display = (stepNum === 3) ? 'block' : 'none';
+        if (s4) s4.style.display = (stepNum === 4) ? 'block' : 'none';
+        if (s5) s5.style.display = (stepNum === 5) ? 'block' : 'none';
+
+        if (stepNum === 5 && typeof updateStep5Summary === 'function') {
+            updateStep5Summary();
+        }
+
+        setWizardStep(stepNum);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function onStepperClick(stepNum) {
+        showTrainingStep(stepNum);
+    }
+
+    // Intercepta troca de projeto para perguntar se tem certeza caso etapas seguintes já estejam abertas
+    document.body.addEventListener('htmx:confirm', function(evt) {
+        if (evt.target.id === 'project-select') {
+            const analysisCont = document.getElementById('analysis-container');
+            const hasOpenSteps = analysisCont && analysisCont.children.length > 0;
+
+            if (hasOpenSteps && currentProjectId && evt.target.value !== currentProjectId) {
+                evt.preventDefault();
+                const msg = "Você já avançou para a configuração do treinamento neste projeto.\n\nTem certeza que deseja trocar de projeto? As tarefas selecionadas serão redefinidas, mas suas configurações de parâmetros (modelo, épocas, batch) serão preservadas.";
+                if (confirm(msg)) {
+                    saveCurrentConfigToMemory();
+                    currentProjectId = evt.target.value;
+                    analysisCont.innerHTML = '';
+                    evt.detail.issueRequest(true);
+                } else {
+                    evt.target.value = currentProjectId;
+                }
+            } else {
+                currentProjectId = evt.target.value;
+                if (analysisCont) analysisCont.innerHTML = '';
+            }
+        }
+    });
+
+    // Alternância de etapa quando o HTMX injeta as etapas seguintes
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'tasks-container') {
+            const adv = document.getElementById('step-1-advance-container');
+            if (adv) adv.style.display = 'flex';
+            showTrainingStep(2);
+        } else if (evt.detail.target.id === 'analysis-container') {
+            restoreConfigFromMemory();
+            showTrainingStep(3);
+        }
+    });
+
+    function startSSEListening() {
+        if (trainingSSE) return;
+        const terminalCard = document.getElementById('step-5-terminal');
+        if (terminalCard) terminalCard.style.display = 'block';
+
+        trainingSSE = initSSE('training', {
+            terminalId: 'train-terminal-output',
+            progressBarId: 'train-progress-bar',
+            onEvent: function(data) {
+                if (data.type === 'epoch') {
+                    const epochEl = document.getElementById('epoch-counter');
+                    const lossEl = document.getElementById('loss-badge');
+                    const mapEl = document.getElementById('map-badge');
+                    if (epochEl) epochEl.innerText = `Época: ${data.epoch}/${data.total_epochs}`;
+                    if (lossEl) lossEl.innerText = `Loss: ${data.loss}`;
+                    if (mapEl) mapEl.innerText = `mAP50: ${data.map50}`;
+                } else if (data.type === 'success' || data.type === 'completed') {
+                    const indicator = document.getElementById('live-indicator');
+                    if (indicator) indicator.className = 'terminal-dot dot-green me-2';
+                    setWizardStep(5);
+                }
+            }
+        });
+    }
+
+    async function handleStartTraining(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        // Extrai parâmetros
+        const taskIds = formData.getAll('task_ids').map(v => parseInt(v));
+        const sampleLimit = formData.get('sample_limit');
+        const trainAllImagesChoice = formData.get('train_all_images_choice') === 'true';
+        const modelChoice = formData.get('model_name_choice') || 'yolo11n';
+        const customWeights = formData.get('custom_weights') || null;
+
+        const payload = {
+            project_id: parseInt(formData.get('project_id')),
+            task_ids: taskIds,
+            mode: formData.get('mode') || 'detection',
+            derive_polygons: formData.get('derive_polygons') === 'on',
+            train_all_images: trainAllImagesChoice,
+            model_name: modelChoice !== 'custom_local' ? modelChoice : 'custom',
+            custom_weights: modelChoice === 'custom_local' ? customWeights : null,
+            sample_limit: sampleLimit ? parseInt(sampleLimit) : null,
+            epochs: parseInt(formData.get('epochs') || 100),
+            batch: parseInt(formData.get('batch') || 16),
+            image_size: parseInt(formData.get('image_size') || 640),
+            device: formData.get('device') || 'auto',
+            framework: 'yolo11'
+        };
+
+        const btn = document.getElementById('start-train-btn');
+        if (btn) btn.disabled = true;
+
+        try {
+            const resp = await fetch('/training/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json();
+                alert('Erro ao iniciar treino: ' + (err.detail || 'Falha na requisição'));
+                if (btn) btn.disabled = false;
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.redirect_url) {
+                // Redireciona diretamente para a aba de Fila de Tarefas
+                window.location.href = data.redirect_url;
+                return;
+            }
+
+            // Fallback caso permaneça na tela
+            startSSEListening();
+            setWizardStep(5);
+            scrollToStep('step-5-terminal');
+
+        } catch (e) {
+            alert('Falha na conexão: ' + e);
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // Se já estiver rodando ao carregar a tela, reconecta o SSE
+    {% if train_status.is_running %}
+    startSSEListening();
+    setWizardStep(5);
+    {% endif %}
+</script>
+{% endblock %}

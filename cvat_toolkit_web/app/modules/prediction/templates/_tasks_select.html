@@ -1,0 +1,76 @@
+<!-- ETAPA 3: Marcar as Tarefas de Destino -->
+<div class="card-neutral mb-4 p-3" id="step-3-card">
+    <div class="d-flex align-items-center mb-2">
+        <span class="step-header-tag">3</span>
+        <span class="fw-bold">Marcar as Tarefas para Anotação</span>
+    </div>
+    <p class="text-muted small mb-3">
+        Selecione as tarefas do projeto que receberão as caixas ou polígonos gerados pelo modelo.
+    </p>
+
+    {% if tasks %}
+    <div class="table-responsive border rounded mb-3">
+        <table class="table-clean mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 45px; text-align: center;">
+                        <input type="checkbox" class="form-check-input" id="check-all-dest-tasks" onchange="toggleAllDestTasks(this)" checked>
+                    </th>
+                    <th style="width: 90px;">ID</th>
+                    <th>Nome da Tarefa</th>
+                    <th style="width: 140px;">Status / Estado</th>
+                    <th style="width: 120px; text-align: right;">Qtd. Imagens</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td class="text-center">
+                        <input type="checkbox" name="dest_task_ids" value="{{ task.id }}" class="form-check-input dest-task-checkbox" checked onchange="updateDestTaskCount()">
+                    </td>
+                    <td><code class="text-secondary font-monospace">#{{ task.id }}</code></td>
+                    <td class="fw-medium text-dark">{{ task.name }}</td>
+                    <td>
+                        <span class="badge-clean-neutral">{{ task.state }}</span>
+                    </td>
+                    <td class="text-end font-monospace">{{ task.images_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center pt-2 flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showPredictionStep(2)">
+            <span>⬅</span> Voltar para Projeto (Passo 2)
+        </button>
+        <div class="text-muted small">
+            <span class="badge bg-secondary-subtle text-dark border px-2 py-1" id="selected-dest-tasks-count">
+                {{ tasks|length }}
+            </span> tarefa(s) marcada(s) para inferência
+        </div>
+        <button type="button" class="btn btn-sm btn-primary-dark d-flex align-items-center gap-1" onclick="requestLabelMapping()">
+            <span>➔ Avançar para Mapeamento & Execução (Passo 4)</span>
+        </button>
+    </div>
+    {% else %}
+    <div class="alert alert-warning py-2 my-2 small">
+        Nenhuma tarefa encontrada neste projeto do CVAT. Crie ou importe tarefas no CVAT primeiro.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function toggleAllDestTasks(master) {
+        document.querySelectorAll('.dest-task-checkbox').forEach(cb => cb.checked = master.checked);
+        updateDestTaskCount();
+    }
+
+    function updateDestTaskCount() {
+        const count = document.querySelectorAll('.dest-task-checkbox:checked').length;
+        const el = document.getElementById('selected-dest-tasks-count');
+        if (el) el.innerText = count;
+    }
+
+    updateDestTaskCount();
+</script>

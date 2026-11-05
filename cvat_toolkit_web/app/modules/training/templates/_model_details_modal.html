@@ -1,0 +1,401 @@
+<div class="modal fade" id="modelDetailModal" tabindex="-1" aria-labelledby="modelDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+        <div class="modal-content shadow-lg border-0">
+            <!-- Modal Header -->
+            <div class="modal-header bg-light border-bottom py-3 px-4">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="fs-5">📁</span>
+                    <h5 class="modal-title fw-bold mb-0 text-dark" id="modelDetailModalLabel">
+                        {{ d.mode }}/{{ d.run_name }}
+                    </h5>
+                    <span class="badge bg-dark font-monospace">{{ d.framework|upper }}</span>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ d.mode_label }}</span>
+                    {% if d.has_weights %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">💾 {{ d.weights_size_mb }} MB</span>
+                    {% else %}
+                    <span class="badge bg-warning-subtle text-warning-emphasis border">⚠️ Sem Pesos</span>
+                    {% endif %}
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+
+            <!-- Modal Sub-header & Quick Info -->
+            <div class="bg-white border-bottom px-4 py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-3 small text-muted flex-wrap">
+                    <div>
+                        <strong class="text-dark">Projeto CVAT:</strong> {{ d.project_name }}
+                    </div>
+                    <div>
+                        <strong class="text-dark">Épocas:</strong> {{ d.total_epochs_completed }}/{{ d.epochs }}
+                    </div>
+                    {% if d.best_map50 != '-' %}
+                    <div>
+                        <strong class="text-dark">Melhor mAP50:</strong> <span class="text-success fw-bold">{{ d.best_map50 }}</span> (Época {{ d.best_epoch }})
+                    </div>
+                    {% endif %}
+                    <div>
+                        <strong class="text-dark">Data:</strong> {{ d.trained_at_formatted }}
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="d-flex align-items-center gap-2">
+                    {% if d.has_weights and d.weights_url %}
+                    <a href="{{ d.weights_url }}" download="best.pt" class="btn btn-sm btn-outline-secondary py-1 px-2 d-flex align-items-center gap-1">
+                        <span>💾</span> Baixar best.pt
+                    </a>
+                    <a href="/prediction" class="btn btn-sm btn-primary-dark py-1 px-3 d-flex align-items-center gap-1">
+                        <span>🎯</span> Usar na Auto-Anotação
+                    </a>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="confirmDeleteModel('{{ d.mode }}', '{{ d.run_name }}')">
+                        <span>🗑️</span> Excluir
+                    </button>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="bg-light px-4 pt-2 border-bottom">
+                <ul class="nav nav-tabs border-0" id="modelDetailTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-semibold py-2 px-3" id="tab-plots-btn" data-bs-toggle="tab" data-bs-target="#tab-plots" type="button" role="tab">
+                            📈 Gráficos & Curvas YOLO ({{ d.plots|length }})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold py-2 px-3" id="tab-images-btn" data-bs-toggle="tab" data-bs-target="#tab-images" type="button" role="tab">
+                            🖼️ Batches & Predições ({{ d.validation_images|length + d.labels_images|length + d.training_batches|length }})
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold py-2 px-3" id="tab-csv-btn" data-bs-toggle="tab" data-bs-target="#tab-csv" type="button" role="tab">
+                            📊 Tabela results.csv ({{ d.csv_rows|length }} épocas)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold py-2 px-3" id="tab-args-btn" data-bs-toggle="tab" data-bs-target="#tab-args" type="button" role="tab">
+                            ⚙️ Hiperparâmetros (args.yaml)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold py-2 px-3" id="tab-folder-btn" data-bs-toggle="tab" data-bs-target="#tab-folder" type="button" role="tab">
+                            📂 Pasta de Treino ({{ d.folder_files|length }} arquivos)
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Modal Body with Tabs Content -->
+            <div class="modal-body p-4" style="max-height: 72vh; overflow-y: auto;">
+                <div class="tab-content" id="modelDetailTabsContent">
+
+                    <!-- ABA 1: GRÁFICOS & CURVAS -->
+                    <div class="tab-pane fade show active" id="tab-plots" role="tabpanel">
+                        {% if d.plots %}
+                            <!-- Destaque para results.png se existir -->
+                            {% for p in d.plots if p.name == 'results.png' %}
+                            <div class="card-neutral p-3 mb-4 border">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-primary">Painel Principal</span>
+                                        <h6 class="fw-bold mb-0 font-monospace">results.png (Progressão de Loss e mAP)</h6>
+                                    </div>
+                                    <a href="{{ p.url }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.8rem;">
+                                        🔍 Abrir em Alta Resolução
+                                    </a>
+                                </div>
+                                <div class="text-center bg-white p-2 rounded border">
+                                    <img src="{{ p.url }}" alt="results.png" class="img-fluid rounded shadow-sm" style="max-height: 480px; width: auto; object-fit: contain;">
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                            <!-- Demais gráficos em Grid (Matriz de Confusão, Curvas PR, F1, etc.) -->
+                            <h6 class="fw-bold text-muted small text-uppercase mb-3">Curvas de Avaliação e Matrizes</h6>
+                            <div class="row g-3">
+                                {% for p in d.plots if p.name != 'results.png' %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="card-neutral h-100 p-2 border">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-semibold small font-monospace text-truncate" title="{{ p.name }}">{{ p.name }}</span>
+                                            <a href="{{ p.url }}" target="_blank" class="text-muted small" title="Ver tamanho original">🔍</a>
+                                        </div>
+                                        <div class="text-center bg-white p-1 rounded border">
+                                            <a href="{{ p.url }}" target="_blank">
+                                                <img src="{{ p.url }}" alt="{{ p.name }}" class="img-fluid rounded" style="max-height: 240px; width: 100%; object-fit: contain;">
+                                            </a>
+                                        </div>
+                                        <div class="text-end text-muted mt-1" style="font-size: 0.72rem;">{{ p.size_str }}</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-5 text-muted">
+                                <div class="fs-2 mb-2">📉</div>
+                                <div class="fw-semibold">Nenhum gráfico de avaliação gerado.</div>
+                                <div class="small">O treinamento pode não ter chegado à fase de validação final ou foi interrompido antes.</div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ABA 2: BATCHES & PREDIÇÕES -->
+                    <div class="tab-pane fade" id="tab-images" role="tabpanel">
+                        {% if d.labels_images or d.validation_images or d.training_batches %}
+                            <!-- Distribuição de Rótulos -->
+                            {% if d.labels_images %}
+                            <div class="mb-4">
+                                <h6 class="fw-bold text-muted small text-uppercase mb-2">🏷️ Distribuição de Rótulos do Dataset</h6>
+                                <div class="row g-3">
+                                    {% for img in d.labels_images %}
+                                    <div class="col-md-6">
+                                        <div class="card-neutral p-2 border">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-semibold small font-monospace">{{ img.name }}</span>
+                                                <a href="{{ img.url }}" target="_blank" class="text-muted small">🔍 Ampliar</a>
+                                            </div>
+                                            <div class="text-center bg-white p-1 rounded border">
+                                                <img src="{{ img.url }}" alt="{{ img.name }}" class="img-fluid rounded" style="max-height: 320px; object-fit: contain;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Predições de Validação -->
+                            {% if d.validation_images %}
+                            <div class="mb-4">
+                                <h6 class="fw-bold text-muted small text-uppercase mb-2">🎯 Amostras de Validação & Predições (Ground Truth vs Predito)</h6>
+                                <div class="row g-3">
+                                    {% for img in d.validation_images %}
+                                    <div class="col-md-6">
+                                        <div class="card-neutral p-2 border">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-semibold small font-monospace">{{ img.name }}</span>
+                                                <a href="{{ img.url }}" target="_blank" class="text-muted small">🔍 Ampliar</a>
+                                            </div>
+                                            <div class="text-center bg-white p-1 rounded border">
+                                                <img src="{{ img.url }}" alt="{{ img.name }}" class="img-fluid rounded" style="max-height: 340px; width: 100%; object-fit: contain;">
+                                            </div>
+                                            <div class="text-end text-muted mt-1" style="font-size: 0.72rem;">{{ img.size_str }}</div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Mosaicos de Treino -->
+                            {% if d.training_batches %}
+                            <div>
+                                <h6 class="fw-bold text-muted small text-uppercase mb-2">🖼️ Lotes de Treinamento (Augmentations & Mosaics)</h6>
+                                <div class="row g-3">
+                                    {% for img in d.training_batches %}
+                                    <div class="col-md-6 col-lg-4">
+                                        <div class="card-neutral p-2 border">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-semibold small font-monospace">{{ img.name }}</span>
+                                                <a href="{{ img.url }}" target="_blank" class="text-muted small">🔍 Ampliar</a>
+                                            </div>
+                                            <div class="text-center bg-white p-1 rounded border">
+                                                <img src="{{ img.url }}" alt="{{ img.name }}" class="img-fluid rounded" style="max-height: 240px; width: 100%; object-fit: contain;">
+                                            </div>
+                                            <div class="text-end text-muted mt-1" style="font-size: 0.72rem;">{{ img.size_str }}</div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="text-center py-5 text-muted">
+                                <div class="fs-2 mb-2">🖼️</div>
+                                <div class="fw-semibold">Nenhuma imagem de predição ou batch encontrada nesta pasta.</div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ABA 3: TABELA RESULTS.CSV -->
+                    <div class="tab-pane fade" id="tab-csv" role="tabpanel">
+                        {% if d.csv_rows %}
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <div>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle me-2">
+                                    Melhor Época: {{ d.best_epoch }} (mAP50: {{ d.best_map50 }})
+                                </span>
+                                <span class="badge-clean-neutral">
+                                    Total de Épocas Concluídas: {{ d.csv_rows|length }}
+                                </span>
+                            </div>
+                            <div>
+                                <a href="/model_files/{{ d.mode }}/{{ d.run_name }}/training/results.csv" download="results.csv" class="btn btn-sm btn-outline-secondary py-1 px-2">
+                                    📥 Baixar results.csv
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive border rounded" style="max-height: 480px; overflow-y: auto;">
+                            <table class="table table-sm table-hover table-striped mb-0 text-nowrap" style="font-size: 0.8rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        {% for col in d.csv_columns %}
+                                        <th class="py-2 px-2 {% if 'mAP50' in col %}table-success text-success-emphasis fw-bold{% endif %}">
+                                            {{ col }}
+                                        </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in d.csv_rows %}
+                                    <tr {% if row.get('epoch') == d.best_epoch %}class="table-success fw-bold"{% endif %}>
+                                        {% for col in d.csv_columns %}
+                                        <td class="py-1 px-2 font-monospace {% if 'mAP50' in col %}fw-bold text-success{% endif %}">
+                                            {{ row.get(col, '-') }}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <div class="fs-2 mb-2">📊</div>
+                            <div class="fw-semibold">Arquivo results.csv não encontrado ou vazio.</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ABA 4: HIPERPARÂMETROS (ARGS.YAML) -->
+                    <div class="tab-pane fade" id="tab-args" role="tabpanel">
+                        {% if d.args %}
+                        <!-- Principais Argumentos em Cards -->
+                        <div class="row g-2 mb-4">
+                            <div class="col-md-3 col-6">
+                                <div class="card-neutral p-2 border">
+                                    <div class="text-muted small">Épocas (epochs)</div>
+                                    <div class="fs-5 fw-bold text-dark">{{ d.args.get('epochs', d.epochs) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card-neutral p-2 border">
+                                    <div class="text-muted small">Batch Size</div>
+                                    <div class="fs-5 fw-bold text-dark">{{ d.args.get('batch', d.batch) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card-neutral p-2 border">
+                                    <div class="text-muted small">Resolução (imgsz)</div>
+                                    <div class="fs-5 fw-bold text-dark">{{ d.args.get('imgsz', d.image_size) }}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card-neutral p-2 border">
+                                    <div class="text-muted small">Otimizador</div>
+                                    <div class="fs-5 fw-bold text-dark">{{ d.args.get('optimizer', 'auto') }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0 text-dark small text-uppercase">Todos os Argumentos de Treino (args.yaml)</h6>
+                            <a href="/model_files/{{ d.mode }}/{{ d.run_name }}/training/args.yaml" download="args.yaml" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.8rem;">
+                                📥 Baixar args.yaml
+                            </a>
+                        </div>
+
+                        <div class="table-responsive border rounded" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-striped mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 250px;">Parâmetro (Chave)</th>
+                                        <th>Valor Configurado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for k, v in d.args.items() %}
+                                    <tr>
+                                        <td class="font-monospace fw-semibold text-secondary py-1 px-3">{{ k }}</td>
+                                        <td class="font-monospace text-dark py-1 px-3">{{ v }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5 text-muted">
+                            <div class="fs-2 mb-2">⚙️</div>
+                            <div class="fw-semibold">Arquivo args.yaml não encontrado.</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- ABA 5: EXPLORADOR DA PASTA DE TREINO -->
+                    <div class="tab-pane fade" id="tab-folder" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-dark">Arquivos Físicos da Pasta</h6>
+                                <p class="text-muted small mb-0">Listagem de todos os arquivos gerados pelo YOLO em <code>models/{{ d.mode }}/{{ d.run_name }}/</code></p>
+                            </div>
+                            <span class="badge bg-secondary-subtle text-dark border px-2 py-1 font-monospace">
+                                {{ d.folder_files|length }} arquivos salvos
+                            </span>
+                        </div>
+
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm table-hover align-middle mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 40px;"></th>
+                                        <th>Nome do Arquivo / Caminho</th>
+                                        <th style="width: 130px;">Tamanho</th>
+                                        <th style="width: 140px; text-align: right;">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for f in d.folder_files %}
+                                    <tr>
+                                        <td class="text-center">
+                                            {% if f.is_weights %}💾
+                                            {% elif f.is_image %}🖼️
+                                            {% elif f.is_csv %}📊
+                                            {% elif f.is_yaml %}⚙️
+                                            {% elif f.is_json %}📋
+                                            {% else %}📄{% endif %}
+                                        </td>
+                                        <td class="font-monospace">
+                                            <a href="{{ f.url }}" target="_blank" class="text-decoration-none fw-medium text-dark">
+                                                {{ f.name }}
+                                            </a>
+                                        </td>
+                                        <td class="text-muted font-monospace">{{ f.size_str }}</td>
+                                        <td class="text-end">
+                                            <a href="{{ f.url }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.78rem;">
+                                                Visualizar ↗
+                                            </a>
+                                            <a href="{{ f.url }}" download class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.78rem;">
+                                                Baixar 📥
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer bg-light border-top py-2 px-4 justify-content-between">
+                <span class="small text-muted font-monospace">
+                    Pasta: models/{{ d.mode }}/{{ d.run_name }}/
+                </span>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>

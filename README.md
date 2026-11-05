@@ -11,6 +11,7 @@ image labeling, datasets e computer vision, com novas integrações conforme a n
 
 | Pasta | Finalidade | Guia |
 |---|---|---|
+| `cvat_toolkit_web` | Interface Web FastAPI para Treinamento YOLO, Auto-Anotação CVAT e Fila Sequencial de Tarefas. | [Web Toolkit](cvat_toolkit_web/README.md) • [Arquitetura de Tarefas](cvat_toolkit_web/README_ARQUITETURA_TASKS.md) |
 | `pipeline` | Serviço unificado da pipeline: coleta contínua e envio resiliente ao CVAT com retry infinito. | [Serviço](pipeline/README.md) |
 | `digifort-scripts` | Coleta HTTP/HTTPS de várias câmeras, ao vivo ou do histórico Digifort. | [Coletor](digifort-scripts/README.md) |
 | `cvat_scripts` | Envio das pastas definidas em JSON ao CVAT, com projeto, lotes e retomada por câmera. | [Uploader](cvat_scripts/README.md) |

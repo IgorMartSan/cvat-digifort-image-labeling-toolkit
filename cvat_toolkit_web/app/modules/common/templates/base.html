@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CVAT AI Toolkit{% endblock %}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <!-- Neutral Slate Modern Theme -->
+    <link rel="stylesheet" href="/static/css/theme.css?v=1.6">
+    <style>
+        .form-select {
+            padding-right: 2.5rem !important;
+            background-position: right 0.75rem center !important;
+        }
+        .form-select-sm {
+            padding-right: 2.25rem !important;
+            background-position: right 0.65rem center !important;
+        }
+    </style>
+    <!-- Local Scripts -->
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/sse.js"></script>
+    <script>window.MAX_LOG_ENTRIES = 20;</script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Header / Navbar -->
+    <header class="navbar-custom py-2 px-4 mb-4">
+        <div class="container-fluid d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+                <span class="brand-title">⚡ CVAT AI Toolkit</span>
+                <nav class="d-flex align-items-center gap-1 ms-3">
+                    <!-- Dropdown Treinamento -->
+                    <div class="dropdown">
+                        <a href="/training" class="nav-tab-link dropdown-toggle {% if active_tab == 'training' %}active{% endif %}" id="dropdownTraining" data-bs-toggle="dropdown" aria-expanded="false">
+                            🏋️ Treinamento
+                        </a>
+                        <ul class="dropdown-menu shadow-sm border mt-1" aria-labelledby="dropdownTraining" style="font-size: 0.9rem;">
+                            <li>
+                                <a class="dropdown-item py-2 d-flex align-items-center gap-2 {% if active_subtab == 'train' %}fw-bold text-primary{% endif %}" href="/training">
+                                    <span>🏋️</span> Iniciar Treinamento
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2 d-flex align-items-center gap-2 {% if active_subtab == 'models' %}fw-bold text-primary{% endif %}" href="/training/models">
+                                    <span>📦</span> Modelos Treinados
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="/prediction" class="nav-tab-link {% if active_tab == 'prediction' %}active{% endif %}">
+                        🎯 Auto-Anotação
+                    </a>
+                    <a href="/jobs" class="nav-tab-link {% if active_tab == 'jobs' %}active{% endif %}">
+                        📋 Fila de Tarefas
+                    </a>
+                </nav>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="htmx-indicator spinner-border spinner-border-sm text-secondary" id="global-spinner" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <div class="badge-clean-neutral small d-flex align-items-center gap-2">
+                    <span class="terminal-dot dot-green" style="width: 8px; height: 8px;"></span>
+                    <span>CVAT Conectado</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="container-fluid px-4 pb-5">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Modal Padrão do Sistema para Alertas e Notificações -->
+    <div class="modal fade" id="systemAlertModal" tabindex="-1" aria-labelledby="systemAlertModalLabel" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-bottom py-2 bg-light">
+                    <h6 class="modal-title fw-bold text-dark d-flex align-items-center gap-2 mb-0" id="systemAlertModalLabel">
+                        <span id="systemAlertModalIcon" class="fs-5">ℹ️</span>
+                        <span id="systemAlertModalTitle">Aviso do Sistema</span>
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body py-4">
+                    <p class="mb-0 text-dark fs-6" id="systemAlertModalMessage"></p>
+                </div>
+                <div class="modal-footer border-top py-2 bg-light">
+                    <button type="button" class="btn btn-sm btn-primary-dark px-4" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Modal Padrão Global do Sistema (substitui alert nativo feio do navegador)
+        window._nativeAlert = window.alert;
+        window.showSystemAlert = function(message, title = 'Aviso do Sistema', icon = 'ℹ️') {
+            const modalEl = document.getElementById('systemAlertModal');
+            if (!modalEl || typeof bootstrap === 'undefined') {
+                if (window._nativeAlert) window._nativeAlert(message);
+                return;
+            }
+            const msgEl = document.getElementById('systemAlertModalMessage');
+            const titleEl = document.getElementById('systemAlertModalTitle');
+            const iconEl = document.getElementById('systemAlertModalIcon');
+            if (msgEl) msgEl.innerText = message;
+            if (titleEl) titleEl.innerText = title;
+            if (iconEl) iconEl.innerText = icon;
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modalInstance.show();
+        };
+        window.alert = function(message) {
+            window.showSystemAlert(message);
+        };
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
