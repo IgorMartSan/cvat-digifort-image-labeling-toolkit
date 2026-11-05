@@ -63,50 +63,12 @@
 
         <!-- ETAPA 3, 4, 5: Containers injetados via HTMX -->
         <div id="analysis-container"></div>
-
-        <!-- ETAPA 5: Terminal ao Vivo de Execução (SSE) -->
-        <div class="card-neutral mb-4" id="step-5-terminal" style="{% if not train_status.is_running %}display: none;{% endif %}">
-            <div class="card-header-clean d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="d-flex align-items-center">
-                    <span class="step-header-tag">5</span>
-                    <span class="spinner-grow spinner-grow-sm text-success me-2" role="status" id="live-indicator"></span>
-                    <span class="fw-semibold">Terminal de Treinamento em Tempo Real</span>
-                </div>
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="badge-clean-neutral" id="epoch-counter">Época: {{ train_status.current_epoch }}/{{ train_status.total_epochs }}</span>
-                    <span class="badge-clean-neutral" id="loss-badge">Loss: {{ train_status.last_loss }}</span>
-                    <span class="badge-clean-neutral" id="map-badge">mAP50: {{ train_status.last_map50 }}</span>
-                </div>
-            </div>
-            <div class="p-3">
-                <div class="progress mb-3" style="height: 10px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="train-progress-bar" role="progressbar" style="width: {{ train_status.percent }}%;" aria-valuenow="{{ train_status.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
-                </div>
-
-                <div class="terminal-window">
-                    <div class="terminal-header">
-                        <div class="terminal-dots">
-                            <span class="terminal-dot dot-red"></span>
-                            <span class="terminal-dot dot-yellow"></span>
-                            <span class="terminal-dot dot-green"></span>
-                        </div>
-                        <span class="small text-muted">train_worker.log</span>
-                        <div></div>
-                    </div>
-                    <div class="terminal-body" id="train-terminal-output">
-                        <div class="log-line-time">Aguardando início do treinamento...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    let trainingSSE = null;
     let currentProjectId = '';
 
     // Cache persistente de configurações de treinamento na memória do navegador
@@ -335,31 +297,6 @@
         }
     });
 
-    function startSSEListening() {
-        if (trainingSSE) return;
-        const terminalCard = document.getElementById('step-5-terminal');
-        if (terminalCard) terminalCard.style.display = 'block';
-
-        trainingSSE = initSSE('training', {
-            terminalId: 'train-terminal-output',
-            progressBarId: 'train-progress-bar',
-            onEvent: function(data) {
-                if (data.type === 'epoch') {
-                    const epochEl = document.getElementById('epoch-counter');
-                    const lossEl = document.getElementById('loss-badge');
-                    const mapEl = document.getElementById('map-badge');
-                    if (epochEl) epochEl.innerText = `Época: ${data.epoch}/${data.total_epochs}`;
-                    if (lossEl) lossEl.innerText = `Loss: ${data.loss}`;
-                    if (mapEl) mapEl.innerText = `mAP50: ${data.map50}`;
-                } else if (data.type === 'success' || data.type === 'completed') {
-                    const indicator = document.getElementById('live-indicator');
-                    if (indicator) indicator.className = 'terminal-dot dot-green me-2';
-                    setWizardStep(5);
-                }
-            }
-        });
-    }
-
     async function handleStartTraining(event) {
         event.preventDefault();
         const form = event.target;
@@ -406,27 +343,13 @@
             }
 
             const data = await resp.json();
-            if (data.redirect_url) {
-                // Redireciona diretamente para a aba de Fila de Tarefas
-                window.location.href = data.redirect_url;
-                return;
-            }
-
-            // Fallback caso permaneça na tela
-            startSSEListening();
-            setWizardStep(5);
-            scrollToStep('step-5-terminal');
+            // Redireciona diretamente para a aba de Fila de Tarefas
+            window.location.href = data.redirect_url || '/jobs';
 
         } catch (e) {
             alert('Falha na conexão: ' + e);
             if (btn) btn.disabled = false;
         }
     }
-
-    // Se já estiver rodando ao carregar a tela, reconecta o SSE
-    {% if train_status.is_running %}
-    startSSEListening();
-    setWizardStep(5);
-    {% endif %}
 </script>
 {% endblock %}
