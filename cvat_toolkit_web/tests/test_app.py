@@ -57,9 +57,9 @@ class TestCvatToolkitWebApp(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Marcar as Tarefas para Anotação", response.text)
         self.assertIn("Task VO2C05", response.text)
-        # Nenhuma tarefa ou cabeçalho deve vir com atributo 'checked' por padrão
-        self.assertNotIn(' checked', response.text)
-        self.assertNotIn('checked="checked"', response.text)
+        # Nenhuma tag input checkbox deve vir com atributo 'checked' por padrão
+        import re
+        self.assertIsNone(re.search(r'<input[^>]*\bchecked\b', response.text))
         # Contador inicial padrão deve ser 0
         self.assertIn('id="selected-dest-tasks-count">\n                0', response.text)
 
