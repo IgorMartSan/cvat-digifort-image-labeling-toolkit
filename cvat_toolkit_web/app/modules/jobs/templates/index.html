@@ -35,8 +35,8 @@
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="text-muted small" id="active-job-step">{{ snapshot.active_job.current_step if snapshot.active_job else '' }}</span>
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" onclick="toggleActiveTerminal()">
-                            📟 Ver Terminal
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2 d-flex align-items-center gap-1" type="button" onclick="showActiveJobLogs()">
+                            <span>📄</span> Ver Logs
                         </button>
                         <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="cancelJob(activeJobId)">
                             ⚠️ Cancelar
@@ -46,30 +46,6 @@
 
                 <div class="progress" style="height: 8px;">
                     <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" id="active-job-bar" role="progressbar" style="width: {{ snapshot.active_job.progress if snapshot.active_job else 0 }}%;"></div>
-                </div>
-
-                <!-- Terminal ao vivo colapsável -->
-                <div id="active-terminal-container" class="mt-3" style="display: none;">
-                    <div class="terminal-window">
-                        <div class="terminal-header">
-                            <div class="terminal-dots">
-                                <span class="terminal-dot dot-red"></span>
-                                <span class="terminal-dot dot-yellow"></span>
-                                <span class="terminal-dot dot-green"></span>
-                            </div>
-                            <span class="small text-muted" id="active-job-log-name">{{ snapshot.active_job.id if snapshot.active_job else 'job' }}.log</span>
-                            <div></div>
-                        </div>
-                        <div class="terminal-body" id="jobs-terminal-output" style="max-height: 220px;">
-                            {% if snapshot.active_job and snapshot.active_job.recent_logs %}
-                                {% for line in snapshot.active_job.recent_logs %}
-                                <div><span class="log-line-time">{{ line }}</span></div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="log-line-time">Conectado ao canal de logs do worker...</div>
-                            {% endif %}
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -232,8 +208,11 @@
         <div class="modal-content border-0 shadow-lg" style="background-color: var(--surface-card);">
             <div class="modal-header border-bottom">
                 <div>
-                    <h5 class="modal-title fw-bold" id="jobLogsModalLabel">📄 Logs da Tarefa</h5>
-                    <div class="small text-muted font-monospace" id="modal-job-id"></div>
+                    <div class="d-flex align-items-center gap-2">
+                        <h5 class="modal-title fw-bold mb-0" id="jobLogsModalLabel">📄 Logs da Tarefa</h5>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0" id="modal-live-indicator" style="display: none; font-size: 0.72rem;">● Em tempo real</span>
+                    </div>
+                    <div class="small text-muted font-monospace mt-1" id="modal-job-id"></div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
@@ -259,6 +238,7 @@
     window.MAX_LOG_ENTRIES = MAX_LOG_ENTRIES;
 
     let activeJobId = "{{ snapshot.active_job.id if snapshot.active_job else '' }}";
+    let activeJobLogs = {{ (snapshot.active_job.recent_logs if snapshot.active_job and snapshot.active_job.recent_logs else []) | tojson }};
     let allTasksData = {{ snapshot.tasks | tojson }};
     let logsModalInstance = null;
     let viewingLogsJobId = null;
@@ -271,16 +251,18 @@
         const modalEl = document.getElementById('jobLogsModal');
         if (modalEl && typeof bootstrap !== 'undefined') {
             logsModalInstance = new bootstrap.Modal(modalEl);
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                viewingLogsJobId = null;
+            });
         }
         renderPagination();
         initJobsSSE();
     });
 
-    function toggleActiveTerminal() {
-        const container = document.getElementById('active-terminal-container');
-        if (container) {
-            container.style.display = container.style.display === 'none' ? 'block' : 'none';
-        }
+    function showActiveJobLogs() {
+        if (!activeJobId) return;
+        const activeTitle = document.getElementById('active-job-title')?.innerText || activeJobId;
+        showJobLogs(activeJobId, activeTitle);
     }
 
     async function cancelJob(jobId) {
@@ -303,8 +285,7 @@
         try {
             const resp = await fetch('/jobs/logs', { method: 'DELETE' });
             if (resp.ok) {
-                const activeTerm = document.getElementById('jobs-terminal-output');
-                if (activeTerm) activeTerm.innerHTML = '<div class="log-line-time text-muted">Logs limpos com sucesso.</div>';
+                activeJobLogs = [];
                 const modalTerm = document.getElementById('modal-terminal-output');
                 if (modalTerm) modalTerm.innerHTML = '<div class="text-muted p-2">Nenhum log gravado.</div>';
                 if (allTasksData) {
@@ -334,13 +315,25 @@
         const modalTitle = document.getElementById('jobLogsModalLabel');
         const modalJobId = document.getElementById('modal-job-id');
         const output = document.getElementById('modal-terminal-output');
+        const liveIndicator = document.getElementById('modal-live-indicator');
 
         if (modalTitle) modalTitle.innerText = `📄 Logs: ${jobTitle || jobId}`;
         if (modalJobId) modalJobId.innerText = jobId;
 
+        if (liveIndicator) {
+            liveIndicator.style.display = (jobId === activeJobId) ? 'inline-block' : 'none';
+        }
+
         const target = allTasksData.find(t => t.id === jobId);
+        let logs = [];
         if (target && target.recent_logs && target.recent_logs.length > 0) {
-            output.innerHTML = target.recent_logs.map(line => `<div><span class="log-line-time">${escapeHtml(line)}</span></div>`).join('');
+            logs = target.recent_logs;
+        } else if (jobId === activeJobId && activeJobLogs && activeJobLogs.length > 0) {
+            logs = activeJobLogs;
+        }
+
+        if (logs.length > 0) {
+            output.innerHTML = logs.map(line => `<div><span class="log-line-time">${escapeHtml(line)}</span></div>`).join('');
             output.scrollTop = output.scrollHeight;
         } else {
             output.innerHTML = '<div class="text-muted p-2">Nenhum log gravado para esta tarefa ainda.</div>';
@@ -583,10 +576,13 @@
                 document.getElementById('active-job-title').innerText = snap.active_job.title;
                 document.getElementById('active-job-step').innerText = snap.active_job.current_step;
                 document.getElementById('active-job-bar').style.width = snap.active_job.progress + '%';
-                document.getElementById('active-job-log-name').innerText = snap.active_job.id + '.log';
+                if (snap.active_job.recent_logs) {
+                    activeJobLogs = snap.active_job.recent_logs;
+                }
             } else {
                 activeCard.style.display = 'none';
                 activeJobId = '';
+                activeJobLogs = [];
             }
 
             // ATUALIZAÇÃO EM TEMPO REAL: re-renderiza a tabela completa reativa
@@ -613,26 +609,33 @@
             const text = data.text;
             if (!text) return;
 
-            // Terminal ativo com buffer circular
-            const activeTerm = document.getElementById('jobs-terminal-output');
-            if (activeTerm) {
-                const line = document.createElement('div');
-                line.innerHTML = `<span class="log-line-time">${escapeHtml(text)}</span>`;
-                if (data.type === 'error') line.className = 'log-line-error';
-                else if (data.type === 'success') line.className = 'log-line-success';
-                activeTerm.appendChild(line);
-                while (activeTerm.children.length > MAX_LOG_ENTRIES) {
-                    activeTerm.removeChild(activeTerm.firstChild);
+            // Mantém buffer local sincronizado para tarefas em execução
+            if (data.job_id === activeJobId) {
+                activeJobLogs.push(text);
+                if (activeJobLogs.length > MAX_LOG_ENTRIES) activeJobLogs.shift();
+            }
+            if (allTasksData) {
+                const targetTask = allTasksData.find(t => t.id === data.job_id);
+                if (targetTask) {
+                    if (!targetTask.recent_logs) targetTask.recent_logs = [];
+                    targetTask.recent_logs.push(text);
+                    if (targetTask.recent_logs.length > MAX_LOG_ENTRIES) {
+                        targetTask.recent_logs.shift();
+                    }
                 }
-                activeTerm.scrollTop = activeTerm.scrollHeight;
             }
 
-            // Modal de logs se estiver aberto para esta tarefa (com buffer circular)
+            // Modal de logs se estiver aberto para esta tarefa (com buffer circular e scroll automático)
             if (viewingLogsJobId && viewingLogsJobId === data.job_id) {
                 const modalTerm = document.getElementById('modal-terminal-output');
                 if (modalTerm) {
+                    if (modalTerm.querySelector('.text-muted')) {
+                        modalTerm.innerHTML = '';
+                    }
                     const line = document.createElement('div');
                     line.innerHTML = `<span class="log-line-time">${escapeHtml(text)}</span>`;
+                    if (data.type === 'error') line.className = 'log-line-error';
+                    else if (data.type === 'success') line.className = 'log-line-success';
                     modalTerm.appendChild(line);
                     while (modalTerm.children.length > MAX_LOG_ENTRIES) {
                         modalTerm.removeChild(modalTerm.firstChild);
