@@ -47,6 +47,22 @@ class TestCvatToolkitWebApp(unittest.TestCase):
         self.assertIn("YOLO11", response.text)
         self.assertIn("Inspecionar Pasta & Gráficos YOLO", response.text)
 
+    @patch("app.modules.prediction.router.get_project_tasks_summary")
+    def test_prediction_tasks_endpoint_defaults_unselected(self, mock_tasks):
+        mock_tasks.return_value = [
+            {"id": 64, "name": "Task VO2C05", "completed": False, "state": "new", "images_count": 100},
+            {"id": 74, "name": "Task VO2C05 Finished", "completed": True, "state": "completed", "images_count": 100},
+        ]
+        response = self.client.get("/prediction/tasks?project_id=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Marcar as Tarefas para Anotação", response.text)
+        self.assertIn("Task VO2C05", response.text)
+        # Nenhuma tarefa ou cabeçalho deve vir com atributo 'checked' por padrão
+        self.assertNotIn(' checked', response.text)
+        self.assertNotIn('checked="checked"', response.text)
+        # Contador inicial padrão deve ser 0
+        self.assertIn('id="selected-dest-tasks-count">\n                0', response.text)
+
     @patch("app.main.check_cvat_connection")
     def test_health_check(self, mock_check):
         mock_check.return_value = {"connected": True, "host": "http://localhost:8080"}

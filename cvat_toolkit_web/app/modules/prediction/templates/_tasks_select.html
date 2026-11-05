@@ -1,8 +1,18 @@
 <!-- ETAPA 3: Marcar as Tarefas de Destino -->
 <div class="card-neutral mb-4 p-3" id="step-3-card">
-    <div class="d-flex align-items-center mb-2">
-        <span class="step-header-tag">3</span>
-        <span class="fw-bold">Marcar as Tarefas para Anotação</span>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div class="d-flex align-items-center">
+            <span class="step-header-tag">3</span>
+            <span class="fw-bold">Marcar as Tarefas para Anotação</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllDestTasks(true)">
+                Marcar Todas
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllDestTasks(false)">
+                Limpar
+            </button>
+        </div>
     </div>
     <p class="text-muted small mb-3">
         Selecione as tarefas do projeto que receberão as caixas ou polígonos gerados pelo modelo.
@@ -14,7 +24,7 @@
             <thead class="table-light">
                 <tr>
                     <th style="width: 45px; text-align: center;">
-                        <input type="checkbox" class="form-check-input" id="check-all-dest-tasks" onchange="toggleAllDestTasks(this)" checked>
+                        <input type="checkbox" class="form-check-input" id="check-all-dest-tasks" onchange="toggleAllDestTasks(this)">
                     </th>
                     <th style="width: 90px;">ID</th>
                     <th>Nome da Tarefa</th>
@@ -24,9 +34,9 @@
             </thead>
             <tbody>
                 {% for task in tasks %}
-                <tr>
-                    <td class="text-center">
-                        <input type="checkbox" name="dest_task_ids" value="{{ task.id }}" class="form-check-input dest-task-checkbox" checked onchange="updateDestTaskCount()">
+                <tr class="task-row" style="cursor: pointer;" onclick="toggleDestTaskRow(event, {{ task.id }})">
+                    <td class="text-center" onclick="event.stopPropagation()">
+                        <input type="checkbox" name="dest_task_ids" value="{{ task.id }}" id="dest-task-cb-{{ task.id }}" class="form-check-input dest-task-checkbox" onchange="updateDestTaskCount()">
                     </td>
                     <td><code class="text-secondary font-monospace">#{{ task.id }}</code></td>
                     <td class="fw-medium text-dark">{{ task.name }}</td>
@@ -46,7 +56,7 @@
         </button>
         <div class="text-muted small">
             <span class="badge bg-secondary-subtle text-dark border px-2 py-1" id="selected-dest-tasks-count">
-                {{ tasks|length }}
+                0
             </span> tarefa(s) marcada(s) para inferência
         </div>
         <button type="button" class="btn btn-sm btn-primary-dark d-flex align-items-center gap-1" onclick="requestLabelMapping()">
@@ -61,15 +71,38 @@
 </div>
 
 <script>
-    function toggleAllDestTasks(master) {
-        document.querySelectorAll('.dest-task-checkbox').forEach(cb => cb.checked = master.checked);
+    function toggleDestTaskRow(event, taskId) {
+        if (event.target.tagName.toLowerCase() === 'input') return;
+        const cb = document.getElementById('dest-task-cb-' + taskId);
+        if (cb) {
+            cb.checked = !cb.checked;
+            updateDestTaskCount();
+        }
+    }
+
+    function toggleAllDestTasks(stateOrElem) {
+        const isChecked = typeof stateOrElem === 'boolean' ? stateOrElem : !!stateOrElem.checked;
+        document.querySelectorAll('.dest-task-checkbox').forEach(cb => cb.checked = isChecked);
+        const master = document.getElementById('check-all-dest-tasks');
+        if (master) {
+            master.checked = isChecked;
+            master.indeterminate = false;
+        }
         updateDestTaskCount();
     }
 
     function updateDestTaskCount() {
-        const count = document.querySelectorAll('.dest-task-checkbox:checked').length;
+        const all = document.querySelectorAll('.dest-task-checkbox');
+        const checked = document.querySelectorAll('.dest-task-checkbox:checked');
+        const count = checked.length;
         const el = document.getElementById('selected-dest-tasks-count');
         if (el) el.innerText = count;
+
+        const master = document.getElementById('check-all-dest-tasks');
+        if (master) {
+            master.checked = all.length > 0 && count === all.length;
+            master.indeterminate = count > 0 && count < all.length;
+        }
     }
 
     updateDestTaskCount();
