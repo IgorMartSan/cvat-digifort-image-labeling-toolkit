@@ -52,15 +52,16 @@
 
     <div class="d-flex justify-content-between align-items-center pt-2 flex-wrap gap-2">
         <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showPredictionStep(2)">
-            <span>⬅</span> Voltar para Projeto (Passo 2)
+            <span>⬅</span> Voltar
         </button>
         <div class="text-muted small">
             <span class="badge bg-secondary-subtle text-dark border px-2 py-1" id="selected-dest-tasks-count">
                 0
             </span> tarefa(s) marcada(s) para inferência
         </div>
-        <button type="button" class="btn btn-sm btn-primary-dark d-flex align-items-center gap-1" onclick="requestLabelMapping()">
-            <span>➔ Avançar para Mapeamento & Execução (Passo 4)</span>
+        <button type="button" class="btn btn-primary-dark d-flex align-items-center gap-2" onclick="requestLabelMapping()">
+            <span>Próximo</span>
+            <span>➔</span>
         </button>
     </div>
     {% else %}
