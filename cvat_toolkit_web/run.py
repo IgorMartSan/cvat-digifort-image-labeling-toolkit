@@ -6,6 +6,7 @@ import uvicorn
 from dotenv import load_dotenv
 
 load_dotenv()
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 
 def get_local_ip() -> str:
