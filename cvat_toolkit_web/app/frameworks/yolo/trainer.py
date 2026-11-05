@@ -111,6 +111,7 @@ class YoloTrainer(BaseTrainer):
             exist_ok=True,
             cache="disk",
             verbose=False,
+            workers=2,
         )
 
         best = Path(result.save_dir) / "weights" / "best.pt"
