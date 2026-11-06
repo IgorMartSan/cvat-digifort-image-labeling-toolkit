@@ -115,7 +115,7 @@
                             <input type="radio" name="train_all_images_choice" value="false" checked onchange="toggleImagesChoice(false)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex align-items-center gap-2 mb-1">
+                                <div class="option-card-header mb-1">
                                     <span class="fs-5">🎯</span>
                                     <span class="fw-bold text-dark">Apenas Imagens Marcadas / Anotadas</span>
                                 </div>
@@ -132,7 +132,7 @@
                             <input type="radio" name="train_all_images_choice" value="true" onchange="toggleImagesChoice(true)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex align-items-center gap-2 mb-1">
+                                <div class="option-card-header mb-1">
                                     <span class="fs-5">🖼️</span>
                                     <span class="fw-bold text-dark">Todas as Imagens da(s) Tarefa(s)</span>
                                 </div>
@@ -153,12 +153,12 @@
                 </label>
                 <div class="row g-3">
                     <!-- Pequeno (Nano) -->
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="yolo11n" checked onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-success-subtle text-success border border-success-subtle">Pequeno (Nano)</span>
                                     <small class="text-muted">~2.6M params</small>
                                 </div>
@@ -171,12 +171,12 @@
                     </div>
 
                     <!-- Pequeno (Small) -->
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="yolo11s" onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Pequeno (Small)</span>
                                     <small class="text-muted">~9.4M params</small>
                                 </div>
@@ -189,12 +189,12 @@
                     </div>
 
                     <!-- Médio (Medium) -->
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="yolo11m" onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Médio (Medium)</span>
                                     <small class="text-muted">~20.1M params</small>
                                 </div>
@@ -207,12 +207,12 @@
                     </div>
 
                     <!-- Grande (Large) -->
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="yolo11l" onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Grande (Large)</span>
                                     <small class="text-muted">~25.3M params</small>
                                 </div>
@@ -225,12 +225,12 @@
                     </div>
 
                     <!-- Extra (XLarge) -->
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="yolo11x" onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Extra (XLarge)</span>
                                     <small class="text-muted">~56.9M params</small>
                                 </div>
@@ -244,12 +244,12 @@
 
                     <!-- Modelos Anteriores Salvos Localmente -->
                     {% if available_models %}
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="custom_local" onchange="selectModelChoice('custom_local')">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="option-card-header">
                                     <span class="badge bg-secondary-subtle text-dark border">Modelo Salvo</span>
                                     <small class="text-muted">{{ available_models | length }} disponível(is)</small>
                                 </div>
