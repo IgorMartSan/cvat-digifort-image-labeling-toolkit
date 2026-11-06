@@ -1,1 +1,4 @@
 {"timestamp": "2026-11-05T19:22:03.585222+00:00", "task_ids": [75], "model": "run_006/best.pt", "processed": 100, "objects": 57, "sent": 57, "failed": 0, "skipped": 0}
+{"timestamp": "2026-11-05T19:52:46.775469+00:00", "task_ids": [67, 68], "model": "run_001/best.pt", "processed": 191, "objects": 50, "sent": 50, "failed": 0, "skipped": 9}
+{"timestamp": "2026-11-05T20:09:28.208872+00:00", "task_ids": [70, 71, 72], "model": "run_001/best.pt", "processed": 300, "objects": 49, "sent": 49, "failed": 0, "skipped": 0}
+{"timestamp": "2026-11-06T11:30:28.330831+00:00", "task_ids": [71, 72], "model": "run_002/best.pt", "processed": 200, "objects": 37, "sent": 37, "failed": 0, "skipped": 0}
