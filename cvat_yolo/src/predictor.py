@@ -48,13 +48,26 @@ def existing_annotations(task: Any) -> tuple[set[int], dict[int, list[int]], boo
     return protected, automatic, bool(tracks)
 
 
+def clear_annotations(task: Any) -> int:
+    """Remove all shapes, tags and tracks from a task before a full re-prediction."""
+    annotations = task.get_annotations()
+    ids = [int(_value(item, "id")) for kind in ("shapes", "tags", "tracks")
+           for item in (_value(annotations, kind, []) or []) if _value(item, "id") is not None]
+    if ids:
+        task.remove_annotations(ids=ids)
+    return len(ids)
+
+
 def predict_task(task: Any, model: Any, mode: str, class_map: dict[int, int], threshold: float,
-                 overwrite_auto: bool = False) -> dict[str, int]:
+                 overwrite_auto: bool = False, recreate_all: bool = False) -> dict[str, int]:
     from PIL import Image
     import io
 
     meta = task.get_meta()
     frame_count = int(_value(meta, "size", 0))
+    if recreate_all:
+        removed = clear_annotations(task)
+        print(f"  Anotações removidas da task {task.id}: {removed}")
     protected_frames, automatic_frames, has_tracks = existing_annotations(task)
     if has_tracks:
         return {"processed": 0, "objects": 0, "sent": 0, "failed": 0, "skipped": frame_count}

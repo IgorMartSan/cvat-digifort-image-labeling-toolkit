@@ -39,6 +39,9 @@ def select_stratified(items: list[dict[str, Any]], count: int, seed: int = 42) -
 
     groups: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for item in items:
+        if not item["objects"]:
+            groups[-1].append(item)
+            continue
         counts: dict[int, int] = defaultdict(int)
         for obj in item["objects"]:
             counts[int(obj["label_id"])] += 1
@@ -66,9 +69,9 @@ def build_dataset(items: list[dict[str, Any]], mode: str, label_names: dict[int,
     from PIL import Image
     import io
 
-    compatible = [item for item in items if item["objects"]]
-    if len(compatible) < 2:
-        raise ValueError("O dataset precisa de ao menos duas imagens compatíveis anotadas.")
+    compatible = list(items)
+    if len(compatible) < 2 or not any(item["objects"] for item in compatible):
+        raise ValueError("O dataset precisa de ao menos duas imagens e uma imagem anotada compatível.")
     rng = random.Random(seed)
     rng.shuffle(compatible)
     selected = compatible
@@ -119,7 +122,7 @@ def train_model(dataset_yaml: Path, mode: str, config: Any, metadata: dict[str, 
     run_dir.mkdir()
     weights = "yolo11n.pt" if mode == "detection" else "yolo11n-seg.pt"
     model = YOLO(weights)
-    result = model.train(data=str(dataset_yaml), epochs=config.epochs, batch=config.batch,
+    result = model.train(data=str(dataset_yaml), epochs=config.epochs, patience=config.patience, batch=config.batch,
                          imgsz=config.image_size, device=None if config.device == "auto" else config.device,
                          project=str(run_dir), name="training", exist_ok=True, cache="disk")
     best = Path(result.save_dir) / "weights" / "best.pt"

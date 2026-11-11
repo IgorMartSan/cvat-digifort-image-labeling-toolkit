@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from src.config import Config, ensure_dirs
-from src.cvat_client import connect, project_tasks
+from src.cvat_client import connect, project_tasks, task_is_completed
 from src.predictor import log_prediction, predict_task, resolve_label_mapping
 from src.yolo import available_models
 
@@ -30,9 +30,12 @@ def choose(items, title: str):
 
 
 def select_many(tasks):
-    print("ID    Nome")
+    print("ID    Nome                         Estado jobs    Imagens")
     for task in tasks:
-        print(f"{task.id:<5} {task.name}")
+        _completed, state = task_is_completed(task)
+        meta = task.get_meta()
+        count = int(getattr(meta, "size", 0) if not isinstance(meta, dict) else meta.get("size", 0))
+        print(f"{task.id:<5} {str(task.name)[:28]:<28} {state:<13} {count}")
     valid = {int(task.id) for task in tasks}
     while True:
         try:
@@ -75,11 +78,22 @@ def main() -> int:
             print(f"\nProjeto: {project.name}\nTarefas: {', '.join(str(t.id) for t in selected_tasks)}")
             print(f"Modelo: {checkpoint.parent.parent.name}/{checkpoint.parent.name}")
             print("Mapeamento: " + ", ".join(f"{source_names[k]} → {next(x.name for x in destination_labels if int(x.id)==v)}" for k,v in class_map.items()))
-            print("Frames com anotações existentes serão preservados e ignorados.")
+            print("\nComo tratar anotações existentes?")
+            print("[1] Preservar e ignorar frames já anotados")
+            print("[2] Substituir somente predições automáticas")
+            print("[3] APAGAR todas as anotações e recriar em todos os frames")
+            annotation_choice = input("Escolha: ").strip()
+            if annotation_choice not in {"1", "2", "3"}:
+                return 1
+            recreate_all = annotation_choice == "3"
             overwrite_auto = False
-            if config.overwrite:
+            if annotation_choice == "2":
                 print("Há suporte para substituir apenas predições anteriores marcadas como automáticas; anotações manuais continuam protegidas.")
                 overwrite_auto = input("Confirmar substituição das predições automáticas existentes? (s/n): ").strip().lower() == "s"
+            if recreate_all:
+                print("ATENÇÃO: todas as anotações, tags e tracks das tasks selecionadas serão apagadas.")
+                if input("Digite APAGAR para confirmar: ").strip() != "APAGAR":
+                    return 0
             if input("Confirmar processamento e envio ao CVAT? (s/n): ").strip().lower() != "s":
                 return 0
             mode = str(metadata.get("mode", "detection"))
@@ -87,7 +101,8 @@ def main() -> int:
             for task in selected_tasks:
                 print(f"Processando task {task.id}: {task.name}")
                 try:
-                    counts = predict_task(task, model, mode, class_map, config.confidence, overwrite_auto=overwrite_auto)
+                    counts = predict_task(task, model, mode, class_map, config.confidence,
+                                          overwrite_auto=overwrite_auto, recreate_all=recreate_all)
                 except Exception as exc:
                     print(f"Falha na task {task.id}: {exc}")
                     counts = {key: 0 for key in total}

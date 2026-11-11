@@ -112,18 +112,24 @@ def main() -> int:
                     return 0
             compatible_count = detection_frames if mode == "detection" else segmentation_frames
             print(f"\nImagens anotadas compatíveis disponíveis: {compatible_count}")
-            print("[1] Todas\n[2] Definir quantidade")
+            print("[1] Todas as imagens anotadas compatíveis")
+            print("[2] Todas as imagens, incluindo as sem anotação")
+            print("[3] Definir quantidade somente de imagens anotadas")
+            print("[4] Definir quantidade incluindo imagens sem anotação")
             count_choice = input("Escolha: ").strip()
-            limit = compatible_count
-            if count_choice == "2":
-                limit = int(input("Quantidade: ").strip())
-                if not 2 <= limit <= compatible_count:
-                    raise ValueError("A quantidade deve ser entre 2 e as imagens disponíveis.")
-            elif count_choice != "1":
+            if count_choice not in {"1", "2", "3", "4"}:
                 return 1
+            include_empty = count_choice in {"2", "4"}
+            available_count = total if include_empty else compatible_count
+            print(f"Imagens disponíveis para seleção: {available_count}")
+            limit = available_count
+            if count_choice in {"3", "4"}:
+                limit = int(input("Quantidade: ").strip())
+                if not 2 <= limit <= available_count:
+                    raise ValueError("A quantidade deve ser entre 2 e as imagens disponíveis.")
             items = []
             for task in selected:
-                items.extend(collect_task(task, mode, derive_polygons=derived))
+                items.extend(collect_task(task, mode, derive_polygons=derived, include_empty=include_empty))
             items = select_stratified(items, min(limit, len(items)), seed=42)
             train_preview, val_preview = _split(items, seed=42)
             class_count = len({obj["label_id"] for item in items for obj in item["objects"]})

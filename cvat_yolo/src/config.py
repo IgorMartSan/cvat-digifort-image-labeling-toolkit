@@ -24,6 +24,7 @@ class Config:
     password: str
     token: str
     epochs: int
+    patience: int
     batch: int
     image_size: int
     device: str
@@ -38,14 +39,15 @@ class Config:
             password=os.getenv("CVAT_PASSWORD", ""),
             token=os.getenv("CVAT_TOKEN", ""),
             epochs=int(os.getenv("YOLO_EPOCHS", "100")),
+            patience=int(os.getenv("YOLO_PATIENCE", "100")),
             batch=int(os.getenv("YOLO_BATCH", "16")),
             image_size=int(os.getenv("YOLO_IMAGE_SIZE", "640")),
             device=os.getenv("YOLO_DEVICE", "auto"),
             confidence=float(os.getenv("CONFIDENCE_THRESHOLD", "0.50")),
             overwrite=_bool("OVERWRITE_ANNOTATIONS"),
         )
-        if config.epochs < 1 or config.batch == 0 or config.batch < -1 or config.image_size < 1:
-            raise ValueError("YOLO_EPOCHS e YOLO_IMAGE_SIZE devem ser positivos; YOLO_BATCH deve ser -1 ou positivo.")
+        if config.epochs < 1 or config.patience < 0 or config.batch == 0 or config.batch < -1 or config.image_size < 1:
+            raise ValueError("YOLO_EPOCHS e YOLO_IMAGE_SIZE devem ser positivos; YOLO_PATIENCE deve ser zero ou positivo; YOLO_BATCH deve ser -1 ou positivo.")
         if not 0 <= config.confidence <= 1:
             raise ValueError("CONFIDENCE_THRESHOLD deve estar entre 0 e 1.")
         return config
