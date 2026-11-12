@@ -1,10 +1,28 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, Optional
 import psutil
 
 logger = logging.getLogger("cvat_toolkit.system_info")
+
+_last_cvat_check_time: float = 0.0
+_last_cvat_status: Dict[str, Any] = {"connected": True, "message": "CVAT Conectado"}
+
+
+def get_cached_cvat_status(ttl_seconds: float = 15.0) -> Dict[str, Any]:
+    global _last_cvat_check_time, _last_cvat_status
+    now = time.time()
+    if now - _last_cvat_check_time > ttl_seconds:
+        try:
+            from app.core.cvat import check_cvat_connection
+            _last_cvat_status = check_cvat_connection()
+            _last_cvat_check_time = now
+        except Exception as exc:
+            _last_cvat_status = {"connected": False, "message": f"Falha na conexão: {exc}"}
+            _last_cvat_check_time = now
+    return _last_cvat_status
 
 # Inicialização não bloqueante do contador de CPU
 try:
@@ -167,4 +185,5 @@ def get_system_resources() -> Dict[str, Any]:
         },
         "gpu": gpu_data,
         "vram": vram_data,
+        "cvat": get_cached_cvat_status(),
     }

@@ -1,48 +1,51 @@
-<div class="system-telemetry-group" id="system-telemetry-widget">
-    <!-- CPU -->
-    <div class="system-resource-pill" title="Processador: {{ res.cpu.percent }}% em uso ({{ res.cpu.cores }} núcleos)">
-        <span class="system-resource-label">🖥️ CPU</span>
-        <span class="system-resource-value {% if res.cpu.percent >= 90 %}text-danger{% elif res.cpu.percent >= 75 %}text-warning-emphasis{% endif %}">
-            {{ res.cpu.percent }}%
-        </span>
+<div class="system-telemetry-widget" id="system-telemetry-widget">
+    <!-- Coluna 1: CPU em cima da RAM -->
+    <div class="telemetry-col telemetry-col-host" title="Processador: {{ res.cpu.percent }}% ({{ res.cpu.cores }} núcleos) | RAM: {{ res.ram.used_gb }} GB / {{ res.ram.total_gb }} GB ({{ res.ram.percent }}%)">
+        <div class="telemetry-row">
+            <span class="telemetry-label">🖥️ CPU:</span>
+            <span class="telemetry-val telemetry-val-cpu {% if res.cpu.percent >= 90 %}text-danger{% elif res.cpu.percent >= 75 %}text-warning-emphasis{% endif %}">{{ res.cpu.percent }}%</span>
+        </div>
+        <div class="telemetry-row">
+            <span class="telemetry-label">🧠 RAM:</span>
+            <span class="telemetry-val telemetry-val-ram {% if res.ram.percent >= 90 %}text-danger{% elif res.ram.percent >= 80 %}text-warning-emphasis{% endif %}">{{ res.ram.used_gb }}<span class="text-muted fw-normal">/{{ res.ram.total_gb }}G</span></span>
+            <span class="telemetry-badge telemetry-badge-fixed {% if res.ram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.ram.percent >= 80 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">{{ res.ram.percent }}%</span>
+        </div>
     </div>
 
-    <!-- RAM -->
-    <div class="system-resource-pill" title="Memória RAM: {{ res.ram.used_gb }} GB de {{ res.ram.total_gb }} GB em uso ({{ res.ram.percent }}%)">
-        <span class="system-resource-label">🧠 RAM</span>
-        <span class="system-resource-value {% if res.ram.percent >= 90 %}text-danger{% elif res.ram.percent >= 80 %}text-warning-emphasis{% endif %}">
-            {{ res.ram.used_gb }}<span class="text-muted fw-normal">/{{ res.ram.total_gb }}GB</span>
-        </span>
-        <span class="system-resource-badge {% if res.ram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.ram.percent >= 80 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">
-            {{ res.ram.percent }}%
-        </span>
+    <div class="telemetry-divider"></div>
+
+    <!-- Coluna 2: GPU em cima da VRAM -->
+    <div class="telemetry-col telemetry-col-gpu" title="{% if res.gpu.available %}{{ res.gpu.name }}: {{ res.gpu.percent }}% de uso | VRAM: {{ res.vram.used_gb }} GB / {{ res.vram.total_gb }} GB ({{ res.vram.percent }}%){% else %}GPU dedicada não detectada{% endif %}">
+        <div class="telemetry-row">
+            <span class="telemetry-label">🎮 GPU:</span>
+            {% if res.gpu.available %}
+            <span class="telemetry-val telemetry-val-gpu {% if res.gpu.percent >= 90 %}text-danger{% elif res.gpu.percent >= 75 %}text-warning-emphasis{% endif %}">{{ res.gpu.percent }}%</span>
+            <span class="telemetry-sub telemetry-sub-temp">{% if res.gpu.temperature is not none %}{{ res.gpu.temperature }}°C{% else %}--{% endif %}</span>
+            {% else %}
+            <span class="telemetry-sub" style="width: 64px; text-align: center;">N/A</span>
+            {% endif %}
+        </div>
+        <div class="telemetry-row">
+            <span class="telemetry-label">⚡ VRAM:</span>
+            {% if res.gpu.available and res.vram.available %}
+            <span class="telemetry-val telemetry-val-vram {% if res.vram.percent >= 90 %}text-danger{% elif res.vram.percent >= 85 %}text-warning-emphasis{% endif %}">{{ res.vram.used_gb }}<span class="text-muted fw-normal">/{{ res.vram.total_gb }}G</span></span>
+            <span class="telemetry-badge telemetry-badge-fixed {% if res.vram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.vram.percent >= 85 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">{{ res.vram.percent }}%</span>
+            {% else %}
+            <span class="telemetry-sub" style="width: 94px; text-align: center;">N/A</span>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- GPU -->
-    <div class="system-resource-pill" title="{% if res.gpu.available %}{{ res.gpu.name }}: {{ res.gpu.percent }}% de utilização{% if res.gpu.temperature %}, {{ res.gpu.temperature }}°C{% endif %}{% else %}GPU dedicada não detectada{% endif %}">
-        <span class="system-resource-label">🎮 GPU</span>
-        {% if res.gpu.available %}
-        <span class="system-resource-value {% if res.gpu.percent >= 90 %}text-danger{% elif res.gpu.percent >= 75 %}text-warning-emphasis{% endif %}">
-            {{ res.gpu.percent }}%
-        </span>
-        {% if res.gpu.temperature %}
-        <span class="text-muted small font-monospace" style="font-size: 0.7rem;">{{ res.gpu.temperature }}°C</span>
-        {% endif %}
-        {% else %}
-        <span class="text-muted small">N/A</span>
-        {% endif %}
-    </div>
+    <div class="telemetry-divider"></div>
 
-    <!-- VRAM -->
-    {% if res.gpu.available and res.vram.available %}
-    <div class="system-resource-pill" title="VRAM ({{ res.gpu.short_name }}): {{ res.vram.used_gb }} GB de {{ res.vram.total_gb }} GB em uso ({{ res.vram.percent }}%)">
-        <span class="system-resource-label">⚡ VRAM</span>
-        <span class="system-resource-value {% if res.vram.percent >= 90 %}text-danger{% elif res.vram.percent >= 85 %}text-warning-emphasis{% endif %}">
-            {{ res.vram.used_gb }}<span class="text-muted fw-normal">/{{ res.vram.total_gb }}GB</span>
-        </span>
-        <span class="system-resource-badge {% if res.vram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.vram.percent >= 85 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">
-            {{ res.vram.percent }}%
+    <!-- Coluna 3: CVAT Conectado + Spinner HTMX -->
+    <div class="telemetry-col-cvat" title="{{ res.cvat.message if res.cvat else 'Status de Conexão com o CVAT' }}">
+        <div class="htmx-indicator spinner-border spinner-border-sm text-secondary" id="global-spinner" role="status" style="width: 11px; height: 11px; border-width: 1.5px; flex-shrink: 0;">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <span class="terminal-dot {% if res.cvat and res.cvat.connected %}dot-green{% else %}dot-red{% endif %}" style="width: 7px; height: 7px; flex-shrink: 0;"></span>
+        <span class="telemetry-cvat-text {% if res.cvat and res.cvat.connected %}text-secondary{% else %}text-danger{% endif %}">
+            {% if res.cvat and res.cvat.connected %}CVAT Conectado{% else %}CVAT Offline{% endif %}
         </span>
     </div>
-    {% endif %}
 </div>

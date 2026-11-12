@@ -591,57 +591,167 @@ body {
 }
 
 /* ==========================================================================
-   Telemetria de Recursos de Hardware (CPU, RAM, GPU, VRAM)
+   Telemetria Compacta de Recursos (CSS Grid Matricial com Posição Fixa)
    ========================================================================== */
-.system-telemetry-group {
-  display: inline-flex;
+.system-telemetry-widget {
+  display: grid;
+  grid-template-columns: 145px 1px 145px 1px 120px;
+  grid-template-rows: 36px;
   align-items: center;
-  gap: 0.45rem;
+  column-gap: 8px;
   background-color: #f8fafc;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 0.25rem 0.45rem;
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 38px;
+  width: 460px;
+  min-width: 460px;
+  max-width: 460px;
+  box-sizing: border-box;
+  user-select: none;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.system-resource-pill {
-  display: inline-flex;
+.telemetry-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.telemetry-col-host {
+  width: 145px;
+  min-width: 145px;
+  max-width: 145px;
+  flex-shrink: 0;
+}
+
+.telemetry-col-gpu {
+  width: 145px;
+  min-width: 145px;
+  max-width: 145px;
+  flex-shrink: 0;
+}
+
+.telemetry-col-cvat {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.78rem;
-  padding: 0.2rem 0.5rem;
-  background-color: #ffffff;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  transition: all 0.15s ease-in-out;
-  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.system-resource-pill:hover {
-  border-color: #cbd5e1;
-  background-color: #f1f5f9;
+.telemetry-row {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.system-resource-label {
+.telemetry-label {
   font-weight: 600;
   color: var(--text-muted);
-  font-size: 0.74rem;
+  font-size: 0.63rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  flex-shrink: 0;
 }
 
-.system-resource-value {
+.telemetry-val {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
+  font-size: 0.65rem;
   color: var(--text-main);
-  font-size: 0.78rem;
+  line-height: 1;
+  display: inline-block;
+  white-space: nowrap;
 }
 
-.system-resource-badge {
+.telemetry-val-cpu {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: right;
+}
+
+.telemetry-val-ram {
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  text-align: right;
+}
+
+.telemetry-val-gpu {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  text-align: right;
+}
+
+.telemetry-val-vram {
+  width: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  text-align: right;
+}
+
+.telemetry-sub {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.60rem;
+  color: var(--text-muted);
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.telemetry-sub-temp {
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  text-align: right;
+}
+
+.telemetry-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.58rem;
   font-weight: 600;
-  padding: 0.1em 0.35em;
-  border-radius: 4px;
+  padding: 0 0.25em;
+  border-radius: 3px;
+  line-height: 1.1;
+  width: 34px;
+  min-width: 34px;
+  max-width: 34px;
+  text-align: center;
+  display: inline-block;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.telemetry-divider {
+  width: 1px;
+  height: 22px;
+  background-color: var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.telemetry-cvat-text {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 

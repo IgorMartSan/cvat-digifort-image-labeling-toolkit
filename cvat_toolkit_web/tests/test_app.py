@@ -303,10 +303,11 @@ class TestCvatToolkitWebApp(unittest.TestCase):
     def test_system_resources_html_endpoint(self):
         response = self.client.get("/api/system/resources")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("system-telemetry-group", response.text)
+        self.assertIn("system-telemetry-widget", response.text)
         self.assertIn("CPU", response.text)
         self.assertIn("RAM", response.text)
         self.assertIn("GPU", response.text)
+        self.assertIn("CVAT Conectado", response.text)
 
     def test_system_resources_json_endpoint(self):
         response = self.client.get("/api/system/resources?format=json")
