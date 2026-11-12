@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from typing import Optional
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import APP_ROOT, MODELS_DIR, ensure_system_dirs
 from app.core.cvat import check_cvat_connection
+from app.core.system_info import get_system_resources
+from app.core.templates import templates
 from app.modules.training.router import router as training_router
 from app.modules.prediction.router import router as prediction_router
 from app.modules.jobs.router import router as jobs_router
@@ -15,6 +18,8 @@ from app.modules.jobs.router import router as jobs_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ensure_system_dirs()
+    # Inicializa medição de telemetria
+    get_system_resources()
     yield
 
 
@@ -49,3 +54,16 @@ async def health_check():
         "status": "healthy",
         "cvat": cvat_status,
     }
+
+
+@app.get("/api/system/resources")
+async def system_resources_endpoint(request: Request, format: Optional[str] = None):
+    res = get_system_resources()
+    accept = request.headers.get("accept", "")
+    if format == "json" or ("application/json" in accept and "text/html" not in accept):
+        return JSONResponse(res)
+    return templates.TemplateResponse(
+        request=request,
+        name="common/templates/_system_resources.html",
+        context={"res": res},
+    )

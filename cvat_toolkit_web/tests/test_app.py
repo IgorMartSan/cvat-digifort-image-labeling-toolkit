@@ -6,6 +6,29 @@ from app.main import app
 
 
 class TestCvatToolkitWebApp(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from app.core.config import MODELS_DIR
+        cls.test_run_dir = MODELS_DIR / "detection" / "run_001"
+        training_dir = cls.test_run_dir / "training"
+        training_dir.mkdir(parents=True, exist_ok=True)
+        (cls.test_run_dir / "best.pt").write_bytes(b"dummy weights")
+        (cls.test_run_dir / "metadata.json").write_text(
+            '{"model_id": "detection/run_001", "framework": "yolo11", "mode": "detection", "run_name": "run_001", "task_ids": [1], "best_map50": 0.85}',
+            encoding="utf-8",
+        )
+        (training_dir / "results.png").write_bytes(b"dummy png")
+        (training_dir / "args.yaml").write_text("epochs: 10\nbatch: 16\n", encoding="utf-8")
+        (training_dir / "results.csv").write_text("epoch,train/loss\n1,0.5\n", encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        from app.core.config import MODELS_DIR
+        test_mode_dir = MODELS_DIR / "detection"
+        if test_mode_dir.exists():
+            shutil.rmtree(test_mode_dir, ignore_errors=True)
+
     def setUp(self):
         self.client = TestClient(app)
 
@@ -276,6 +299,27 @@ class TestCvatToolkitWebApp(unittest.TestCase):
         # Limpeza
         with job_queue._lock:
             job_queue._active_job = None
+
+    def test_system_resources_html_endpoint(self):
+        response = self.client.get("/api/system/resources")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("system-telemetry-group", response.text)
+        self.assertIn("CPU", response.text)
+        self.assertIn("RAM", response.text)
+        self.assertIn("GPU", response.text)
+
+    def test_system_resources_json_endpoint(self):
+        response = self.client.get("/api/system/resources?format=json")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("cpu", data)
+        self.assertIn("ram", data)
+        self.assertIn("gpu", data)
+        self.assertIn("vram", data)
+        self.assertIn("percent", data["cpu"])
+        self.assertIn("percent", data["ram"])
+        self.assertIn("available", data["gpu"])
+        self.assertIn("available", data["vram"])
 
 
 

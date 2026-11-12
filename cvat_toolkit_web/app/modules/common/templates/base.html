@@ -58,13 +58,25 @@
                     </a>
                 </nav>
             </div>
-            <div class="d-flex align-items-center gap-3">
-                <div class="htmx-indicator spinner-border spinner-border-sm text-secondary" id="global-spinner" role="status">
-                    <span class="visually-hidden">Carregando...</span>
+            <div class="d-flex align-items-center gap-3 flex-wrap justify-content-end">
+                <!-- Monitor de Recursos do Sistema (CPU, RAM, GPU, VRAM) -->
+                <div id="system-resources-bar"
+                     hx-get="/api/system/resources"
+                     hx-trigger="every 3s"
+                     hx-swap="innerHTML"
+                     class="d-flex align-items-center">
+                    {% set res = get_system_resources() %}
+                    {% include "common/templates/_system_resources.html" %}
                 </div>
-                <div class="badge-clean-neutral small d-flex align-items-center gap-2">
-                    <span class="terminal-dot dot-green" style="width: 8px; height: 8px;"></span>
-                    <span>CVAT Conectado</span>
+
+                <div class="d-flex align-items-center gap-2 border-start ps-3">
+                    <div class="htmx-indicator spinner-border spinner-border-sm text-secondary" id="global-spinner" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <div class="badge-clean-neutral small d-flex align-items-center gap-2" title="Status de Comunicação com a API do CVAT">
+                        <span class="terminal-dot dot-green" style="width: 8px; height: 8px;"></span>
+                        <span>CVAT Conectado</span>
+                    </div>
                 </div>
             </div>
         </div>

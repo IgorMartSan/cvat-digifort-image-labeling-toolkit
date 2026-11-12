@@ -589,3 +589,59 @@ body {
   background-color: #f8fafc;
   border-style: dashed;
 }
+
+/* ==========================================================================
+   Telemetria de Recursos de Hardware (CPU, RAM, GPU, VRAM)
+   ========================================================================== */
+.system-telemetry-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.25rem 0.45rem;
+}
+
+.system-resource-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  background-color: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+  cursor: default;
+}
+
+.system-resource-pill:hover {
+  border-color: #cbd5e1;
+  background-color: #f1f5f9;
+}
+
+.system-resource-label {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.system-resource-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  color: var(--text-main);
+  font-size: 0.78rem;
+}
+
+.system-resource-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+

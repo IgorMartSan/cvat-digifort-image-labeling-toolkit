@@ -14,6 +14,8 @@ dependencies = [
     "python-dotenv>=1.0,<2",
     "ultralytics>=8.3,<9",
     "pillow>=10,<13",
+    "psutil>=5.9.0",
+    "nvidia-ml-py>=12.535,<14",
 ]
 
 [tool.uv]

@@ -1,0 +1,48 @@
+<div class="system-telemetry-group" id="system-telemetry-widget">
+    <!-- CPU -->
+    <div class="system-resource-pill" title="Processador: {{ res.cpu.percent }}% em uso ({{ res.cpu.cores }} núcleos)">
+        <span class="system-resource-label">🖥️ CPU</span>
+        <span class="system-resource-value {% if res.cpu.percent >= 90 %}text-danger{% elif res.cpu.percent >= 75 %}text-warning-emphasis{% endif %}">
+            {{ res.cpu.percent }}%
+        </span>
+    </div>
+
+    <!-- RAM -->
+    <div class="system-resource-pill" title="Memória RAM: {{ res.ram.used_gb }} GB de {{ res.ram.total_gb }} GB em uso ({{ res.ram.percent }}%)">
+        <span class="system-resource-label">🧠 RAM</span>
+        <span class="system-resource-value {% if res.ram.percent >= 90 %}text-danger{% elif res.ram.percent >= 80 %}text-warning-emphasis{% endif %}">
+            {{ res.ram.used_gb }}<span class="text-muted fw-normal">/{{ res.ram.total_gb }}GB</span>
+        </span>
+        <span class="system-resource-badge {% if res.ram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.ram.percent >= 80 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">
+            {{ res.ram.percent }}%
+        </span>
+    </div>
+
+    <!-- GPU -->
+    <div class="system-resource-pill" title="{% if res.gpu.available %}{{ res.gpu.name }}: {{ res.gpu.percent }}% de utilização{% if res.gpu.temperature %}, {{ res.gpu.temperature }}°C{% endif %}{% else %}GPU dedicada não detectada{% endif %}">
+        <span class="system-resource-label">🎮 GPU</span>
+        {% if res.gpu.available %}
+        <span class="system-resource-value {% if res.gpu.percent >= 90 %}text-danger{% elif res.gpu.percent >= 75 %}text-warning-emphasis{% endif %}">
+            {{ res.gpu.percent }}%
+        </span>
+        {% if res.gpu.temperature %}
+        <span class="text-muted small font-monospace" style="font-size: 0.7rem;">{{ res.gpu.temperature }}°C</span>
+        {% endif %}
+        {% else %}
+        <span class="text-muted small">N/A</span>
+        {% endif %}
+    </div>
+
+    <!-- VRAM -->
+    {% if res.gpu.available and res.vram.available %}
+    <div class="system-resource-pill" title="VRAM ({{ res.gpu.short_name }}): {{ res.vram.used_gb }} GB de {{ res.vram.total_gb }} GB em uso ({{ res.vram.percent }}%)">
+        <span class="system-resource-label">⚡ VRAM</span>
+        <span class="system-resource-value {% if res.vram.percent >= 90 %}text-danger{% elif res.vram.percent >= 85 %}text-warning-emphasis{% endif %}">
+            {{ res.vram.used_gb }}<span class="text-muted fw-normal">/{{ res.vram.total_gb }}GB</span>
+        </span>
+        <span class="system-resource-badge {% if res.vram.percent >= 90 %}bg-danger-subtle text-danger border border-danger-subtle{% elif res.vram.percent >= 85 %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% else %}bg-secondary-subtle text-secondary border{% endif %}">
+            {{ res.vram.percent }}%
+        </span>
+    </div>
+    {% endif %}
+</div>

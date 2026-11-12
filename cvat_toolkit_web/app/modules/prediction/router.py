@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.config import APP_ROOT
 from app.core.cvat import get_project_tasks_summary, list_projects
 from app.core.events import sse_manager
+from app.core.templates import templates
 from app.frameworks.yolo.trainer import list_available_models
 from app.modules.training.service import (
     get_model_details_service,
@@ -23,7 +24,6 @@ from app.modules.prediction.service import (
 )
 
 router = APIRouter(prefix="/prediction", tags=["Prediction"])
-templates = Jinja2Templates(directory=str(APP_ROOT / "app" / "modules"))
 
 
 @router.get("", response_class=HTMLResponse)

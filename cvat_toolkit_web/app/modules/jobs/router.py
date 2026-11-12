@@ -11,9 +11,9 @@ from fastapi.templating import Jinja2Templates
 from app.core.config import APP_ROOT, MAX_LOG_ENTRIES
 from app.core.events import sse_manager
 from app.core.job_queue import MAX_JOB_HISTORY, job_queue
+from app.core.templates import templates
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
-templates = Jinja2Templates(directory=str(APP_ROOT / "app" / "modules"))
 
 
 @router.get("", response_class=HTMLResponse)
