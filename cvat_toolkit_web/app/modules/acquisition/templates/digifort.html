@@ -1,0 +1,1465 @@
+{% extends "common/templates/base.html" %}
+{% from "common/templates/_stepper.html" import render_stepper %}
+
+{% block title %}Aquisição Digifort VMS - CVAT AI Toolkit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Cabeçalho Principal -->
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+                <h4 class="fw-bold mb-1">Aquisição de Câmeras • Digifort VMS</h4>
+                <p class="text-muted small mb-0">
+                    Captura automática de snapshots e envio contínuo em lotes de tarefas para o CVAT.
+                </p>
+            </div>
+            <a href="/acquisition/workers" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+                <span>📡</span> Ver Workers Ativos
+            </a>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger py-2 small mb-3">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Stepper Visual Superior (4 Etapas Guiadas) -->
+        {{ render_stepper([
+            {"label": "Destino CVAT", "icon": "📁"},
+            {"label": "Conexão Câmera", "icon": "🎥"},
+            {"label": "Lote & Coleta", "icon": "⚙️"},
+            {"label": "Revisão & Ativação", "icon": "🚀"}
+        ], active_step=1, on_step_click="onStepperClick") }}
+
+        <form id="acquisition-form" method="POST" action="/acquisition/workers" onsubmit="return validateForm()">
+            <!-- Campos Ocultos para compatibilidade com o backend -->
+            <input type="hidden" name="camera_name" id="camera_name" value="">
+            <input type="hidden" name="source_type" id="form_source_type" value="rtsp">
+            <input type="hidden" name="digifort_host" id="form_digifort_host" value="">
+            <input type="hidden" name="use_rtsp" id="form_use_rtsp" value="false">
+            <input type="hidden" name="snapshot_url" id="form_snapshot_url" value="">
+            <input type="hidden" name="ptz_pan" id="form_ptz_pan" value="">
+            <input type="hidden" name="ptz_tilt" id="form_ptz_tilt" value="">
+            <input type="hidden" name="ptz_zoom" id="form_ptz_zoom" value="">
+            <input type="hidden" name="ptz_preset" id="form_ptz_preset" value="">
+            <input type="hidden" name="cvat_project_name" id="form_cvat_project_name" value="">
+            <input type="hidden" name="cvat_organization" id="form_cvat_organization" value="{{ default_org }}">
+
+            <!-- ============================================================== -->
+            <!-- ETAPA 1: Destino no CVAT (Projeto & Organização)               -->
+            <!-- ============================================================== -->
+            <div class="card-neutral mb-4 p-3" id="step-1-card">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="step-header-tag">1</span>
+                    <span class="fw-bold">Destino no CVAT</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Selecione um projeto do CVAT ou crie um novo.
+                </p>
+
+                <!-- Seleção do Modo de Projeto: Existente vs Novo -->
+                <div class="mb-3">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="card p-3 border rounded cursor-pointer project-mode-card" id="mode-card-existing" for="proj_mode_existing" style="cursor: pointer; border-width: 2px !important;">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="radio" name="project_mode" id="proj_mode_existing" value="existing" checked onchange="onProjectModeToggle()">
+                                    <label class="form-check-label fw-bold text-dark cursor-pointer" for="proj_mode_existing">
+                                        📁 Escolher Projeto do CVAT
+                                    </label>
+                                </div>
+                                <div class="text-muted small mt-1 ps-4">
+                                    Projetos de todas as organizações visíveis.
+                                </div>
+                            </label>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="card p-3 border rounded cursor-pointer project-mode-card" id="mode-card-new" for="proj_mode_new" style="cursor: pointer; border-width: 2px !important;">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="radio" name="project_mode" id="proj_mode_new" value="new" onchange="onProjectModeToggle()">
+                                    <label class="form-check-label fw-bold text-dark cursor-pointer" for="proj_mode_new">
+                                        ✨ Criar Novo Projeto
+                                    </label>
+                                </div>
+                                <div class="text-muted small mt-1 ps-4">
+                                    Criar projeto novo na organização escolhida.
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel: Projeto Existente -->
+                <div id="panel-existing-project" class="p-3 bg-light rounded border mb-3">
+                    <label for="cvat_project_id" class="form-label small fw-bold text-dark">
+                        Projeto do CVAT (Todas as Organizações):
+                    </label>
+                    <select class="form-select" name="cvat_project_id" id="cvat_project_id" onchange="onExistingProjectSelected()">
+                        <option value="">-- Selecione um projeto do CVAT --</option>
+                        {% if projects %}
+                            {% for group in projects|groupby('organization') %}
+                            <optgroup label="🏢 {{ 'Organização: ' ~ group.grouper if group.grouper else 'Projetos Pessoais' }}">
+                                {% for p in group.list %}
+                                <option value="{{ p.id }}" data-name="{{ p.name }}" data-org="{{ p.organization }}">
+                                    {{ p.name }} (ID #{{ p.id }})
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        {% else %}
+                            <option value="" disabled>Nenhum projeto encontrado</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <!-- Painel: Criar Novo Projeto -->
+                <div id="panel-new-project" class="p-3 bg-light rounded border mb-3" style="display: none;">
+                    <div class="row g-2">
+                        <div class="col-md-7">
+                            <label for="new_project_name" class="form-label small fw-bold text-dark">Nome do Novo Projeto:</label>
+                            <input type="text" class="form-control" name="new_project_name" id="new_project_name" placeholder="Ex: VO2C01" oninput="onNewProjectInput()">
+                        </div>
+                        <div class="col-md-5">
+                            <label for="new_project_org" class="form-label small fw-bold text-dark">Organização Destino:</label>
+                            <select class="form-select" name="new_project_org" id="new_project_org" onchange="onNewProjectInput()">
+                                <option value="">(Sem organização / Pessoal)</option>
+                                {% for org in organizations %}
+                                <option value="{{ org.slug }}" {% if org.slug == default_org %}selected{% endif %}>
+                                    {{ org.name }} ({{ org.slug }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="button" class="btn btn-sm btn-primary px-3" onclick="goToStep(2)">
+                        Avançar para Conexão da Câmera ➔
+                    </button>
+                </div>
+            </div>
+
+            <!-- ============================================================== -->
+            <!-- ETAPA 2: Definir Câmera (Cadastrar Câmera ou Escolher Câmera)   -->
+            <!-- ============================================================== -->
+            <div class="card-neutral mb-4 p-3" id="step-2-card" style="display: none;">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="step-header-tag">2</span>
+                    <span class="fw-bold">Definir Câmera</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Cadastre uma nova câmera ou escolha uma câmera salva.
+                </p>
+
+                <!-- Escolha: 1. Cadastrar Câmera (Adicionar) vs 2. Escolher Câmera (Dropdown) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="card p-3 border rounded cursor-pointer camera-mode-card" id="mode-card-cam-new" for="cam_mode_new" style="cursor: pointer; border-width: 2px !important;">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="camera_mode" id="cam_mode_new" value="new" checked onchange="onCameraModeToggle()">
+                                <label class="form-check-label fw-bold text-dark cursor-pointer" for="cam_mode_new">
+                                    ➕ Cadastrar Câmera
+                                </label>
+                            </div>
+                            <div class="text-muted small mt-1 ps-4">
+                                Adicionar nova câmera informando o link RTSP ou HTTP.
+                            </div>
+                        </label>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="card p-3 border rounded cursor-pointer camera-mode-card" id="mode-card-cam-select" for="cam_mode_select" style="cursor: pointer; border-width: 2px !important;">
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="radio" name="camera_mode" id="cam_mode_select" value="select" onchange="onCameraModeToggle()">
+                                <label class="form-check-label fw-bold text-dark cursor-pointer" for="cam_mode_select">
+                                    📋 Escolher Câmera
+                                </label>
+                            </div>
+                            <div class="text-muted small mt-1 ps-4">
+                                Selecionar câmera salva no histórico.
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Painel 1: Cadastrar Câmera (Link Direto RTSP ou HTTP) -->
+                <div id="panel-new-camera" class="p-3 bg-light rounded border mb-3">
+                    <label for="direct_url" class="form-label small fw-bold text-dark">Link da Câmera (RTSP ou HTTP):</label>
+                    <div class="input-group">
+                        <span class="input-group-text font-monospace small bg-white text-muted fw-bold" id="protocol-indicator">🔗 LINK</span>
+                        <input type="text" 
+                               class="form-control font-monospace" 
+                               name="direct_url" 
+                               id="direct_url" 
+                               placeholder="rtsp://usuario:senha@ip/Interface/Cameras/Media?Camera=VO2C01" 
+                               value="{{ saved_urls[0] if saved_urls else '' }}" 
+                               required 
+                               oninput="onDirectUrlInput()">
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearDirectUrl()" title="Limpar campo">✕</button>
+                    </div>
+                    <div class="mt-1">
+                        <span id="detected-cam-badge" class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold" style="display: none;"></span>
+                    </div>
+                </div>
+
+                <!-- Painel 2: Escolher Câmera (Dropdown com câmeras salvas) -->
+                <div id="panel-select-camera" class="p-3 bg-light rounded border mb-3" style="display: none;">
+                    <label for="saved_links_select" class="form-label small fw-bold text-dark">Escolher Câmera Salva:</label>
+                    <div class="input-group">
+                        <select class="form-select font-monospace small" id="saved_links_select" onchange="onSelectHistoryUrl(this.value)" {% if not saved_cameras %}disabled{% endif %}>
+                            {% if saved_cameras %}
+                                <option value="">-- Selecione uma câmera salva --</option>
+                                {% for cam in saved_cameras %}
+                                <option value="{{ cam.url }}" data-name="{{ cam.name }}" {% if loop.first %}selected{% endif %}>
+                                    🎥 {{ cam.label }}
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="">-- Nenhuma câmera salva ainda --</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" class="btn btn-outline-danger" id="btn-delete-history" onclick="deleteSelectedHistoryUrl()" title="Excluir câmera salva" {% if not saved_cameras %}disabled{% endif %}>
+                            🗑️
+                        </button>
+                    </div>
+                    <div class="small font-monospace text-muted mt-1 text-truncate" id="selected-camera-hint" style="font-size: 0.75rem;"></div>
+                </div>
+
+                <!-- Botão de Teste de Snapshot & Conexão -->
+                <div class="d-flex align-items-center justify-content-between p-2 bg-light rounded border mb-3">
+                    <span class="fw-bold small text-dark ps-2">Testar Conexão:</span>
+                    <button type="button" class="btn btn-primary btn-sm px-3" id="btn-test-snapshot" onclick="testSnapshot()">
+                        📸 Testar Conexão & Snapshot
+                    </button>
+                </div>
+
+                <!-- Card de Resultado do Teste -->
+                <div id="test-result-box" class="mt-3 p-3 border rounded bg-white" style="display: none;">
+                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold" id="test-status-badge">✓ Câmera Conectada</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" id="test-protocol-badge">RTSP</span>
+                            <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1" id="test-saved-badge">💾 Salvo no Histórico</span>
+                        </div>
+                        <span class="small text-muted font-monospace" id="test-meta"></span>
+                    </div>
+                    <div class="text-center bg-dark p-2 rounded mb-3">
+                        <img id="preview-image" src="" alt="Snapshot Preview" class="img-fluid rounded border" style="max-height: 320px;">
+                    </div>
+
+                    <!-- Painel de Telemetria e Posicionamento Digifort (PTZ) -->
+                    <div id="ptz-info-card" class="p-3 rounded border bg-light" style="display: none;">
+                        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom flex-wrap gap-2">
+                            <span class="fw-bold small text-dark d-flex align-items-center gap-2">
+                                <span>🎯</span> Telemetria & Posicionamento da Câmera (Digifort)
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="ptz-support-badge">PTZ Suportado</span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle" id="cam-active-badge">Online</span>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 font-monospace small mb-2" id="ptz-metrics-row">
+                            <div class="col-6 col-md-3">
+                                <div class="p-2 bg-white rounded border text-center shadow-xs">
+                                    <span class="text-muted d-block" style="font-size: 0.72rem;">Pan:</span>
+                                    <span class="fw-bold text-dark fs-6" id="ptz-pan">-</span>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-2 bg-white rounded border text-center shadow-xs">
+                                    <span class="text-muted d-block" style="font-size: 0.72rem;">Tilt:</span>
+                                    <span class="fw-bold text-dark fs-6" id="ptz-tilt">-</span>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-2 bg-white rounded border text-center shadow-xs">
+                                    <span class="text-muted d-block" style="font-size: 0.72rem;">Zoom:</span>
+                                    <span class="fw-bold text-dark fs-6" id="ptz-zoom">-</span>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="p-2 bg-white rounded border text-center shadow-xs">
+                                    <span class="text-muted d-block" style="font-size: 0.72rem;">Preset Atual:</span>
+                                    <span class="fw-bold text-dark fs-6 text-truncate d-block" id="ptz-preset" title="-">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Presets cadastrados no Digifort -->
+                        <div id="ptz-presets-container" class="mt-2 p-2 bg-white rounded border small" style="display: none;">
+                            <span class="text-muted d-block mb-1 fw-semibold" style="font-size: 0.75rem;">Presets cadastrados no Digifort:</span>
+                            <div id="ptz-presets-list" class="d-flex flex-wrap gap-1"></div>
+                        </div>
+
+                        <div class="mt-2 text-muted small d-flex justify-content-between align-items-center flex-wrap gap-1">
+                            <span id="ptz-status-text" class="small">Status: Câmera livre</span>
+                            <span class="badge bg-secondary-subtle text-secondary border small">💡 Presets disponíveis na Etapa 3</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" onclick="goToStep(1)">
+                        ⬅ Voltar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary px-3" onclick="goToStep(3)">
+                        Avançar para Lote & Coleta ➔
+                    </button>
+                </div>
+            </div>
+
+            <!-- ============================================================== -->
+            <!-- ETAPA 3: Política de Lote, Intervalo, PTZ & Modo Histórico     -->
+            <!-- ============================================================== -->
+            <div class="card-neutral mb-4 p-3" id="step-3-card" style="display: none;">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="step-header-tag">3</span>
+                    <span class="fw-bold">Coleta, Posicionamento & Histórico</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Defina o modo temporal, espaçamento na gravação, tamanho do lote e posicionamento PTZ.
+                </p>
+
+                <div class="row g-3">
+                    <!-- 1. Modo Temporal: Gravação Histórica vs Ao Vivo (No topo da Etapa 3) -->
+                    <div class="col-12">
+                        <div class="p-3 bg-light rounded border">
+                            <label class="form-label fw-bold small text-dark d-flex align-items-center gap-2 mb-2">
+                                <span>⏳</span> Modo de Coleta:
+                            </label>
+
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <label class="card p-2 border rounded cursor-pointer h-100 border-primary" id="card-mode-history" for="capture_mode_history" style="cursor: pointer;">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input" type="radio" name="capture_mode" id="capture_mode_history" value="history" checked onchange="onCaptureModeToggle()">
+                                            <label class="form-check-label fw-bold text-dark cursor-pointer" for="capture_mode_history">
+                                                ⏳ Gravações Históricas (Digifort Playback)
+                                            </label>
+                                        </div>
+                                        <div class="text-muted small mt-1 ps-4">
+                                            Avanço rápido pela gravação extraindo fotos até o presente.
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="card p-2 border rounded cursor-pointer h-100 bg-light" id="card-mode-live" for="capture_mode_live" style="cursor: pointer;">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input" type="radio" name="capture_mode" id="capture_mode_live" value="live" onchange="onCaptureModeToggle()">
+                                            <label class="form-check-label fw-bold text-dark cursor-pointer" for="capture_mode_live">
+                                                🔴 Ao Vivo (Tempo Real contínuo)
+                                            </label>
+                                        </div>
+                                        <div class="text-muted small mt-1 ps-4">
+                                            Captura contínua apenas a partir do momento atual.
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Campos de Data Inicial e Final para Histórico -->
+                            <div id="historical-dates-container" class="p-3 bg-white rounded border mt-2">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="start_date" class="form-label small fw-bold text-dark">Data e Hora de Início (Passado):</label>
+                                        <input type="datetime-local" class="form-control font-monospace" name="start_date" id="start_date" oninput="updateSummary()">
+                                        <div class="d-flex gap-2 mt-2 flex-wrap">
+                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="setHistoricalStartDate(24)">📅 24h atrás</button>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="setHistoricalStartDate(24 * 7)">📅 7 dias atrás</button>
+                                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="setHistoricalStartDate(24 * 30)">📅 30 dias atrás</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="end_date" class="form-label small fw-bold text-dark">Data e Hora Final (Opcional):</label>
+                                        <input type="datetime-local" class="form-control font-monospace" name="end_date" id="end_date" oninput="updateSummary()">
+                                        <div class="form-text small text-muted">Deixe em branco para coletar até o presente (ao vivo em seguida).</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Espaçamento entre Fotos na Gravação / Frequência de Captura -->
+                    <div class="col-md-7">
+                        <div class="p-3 bg-light rounded border h-100">
+                            <label class="form-label small fw-bold text-dark" id="interval_label">Espaçamento entre Fotos na Gravação (Linha do Tempo):</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control font-monospace" name="interval_seconds" id="interval_seconds" value="600" min="1" required oninput="onIntervalInput()">
+                                <span class="input-group-text small bg-white text-muted">segundos</span>
+                            </div>
+                            <div class="d-flex gap-1 mt-2 flex-wrap">
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setIntervalVal(60)">1 min (60s)</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setIntervalVal(300)">5 min (300s)</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small fw-semibold" onclick="setIntervalVal(600)">10 min (600s) • Recomendado</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setIntervalVal(1800)">30 min (1800s)</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setIntervalVal(3600)">1 hora (3600s)</button>
+                            </div>
+
+                            <!-- Explicação Dinâmica do Download Acelerado -->
+                            <div class="alert alert-info py-2 px-3 small border-info-subtle mt-3 mb-0 d-flex align-items-start gap-2" id="interval-hint-box">
+                                <span class="fs-5">⚡</span>
+                                <div id="interval-hint-content">
+                                    <strong>Download Acelerado na Gravação:</strong> O sistema <strong>não espera</strong> esse tempo no mundo real durante a busca no Digifort. Ele avança a gravação rapidamente baixando <strong>1 foto a cada 10 minutos</strong> gravados até alcançar o tempo atual. A espera em tempo real só ocorrerá quando a gravação for concluída e entrar no modo ao vivo contínuo.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Tamanho do Lote -->
+                    <div class="col-md-5">
+                        <div class="p-3 bg-light rounded border h-100">
+                            <label class="form-label small fw-bold text-dark">Tamanho do Lote (Fotos por Task):</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control font-monospace" name="images_per_task" id="images_per_task" value="200" min="1" max="1000" required oninput="updateSummary()">
+                                <span class="input-group-text small bg-white text-muted">fotos</span>
+                            </div>
+                            <div class="d-flex gap-1 mt-2 flex-wrap">
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setImagesPerTaskVal(50)">50</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setImagesPerTaskVal(100)">100</button>
+                                <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small fw-semibold" onclick="setImagesPerTaskVal(200)">200 • Padrão</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" onclick="setImagesPerTaskVal(500)">500</button>
+                            </div>
+                            <div class="form-text small text-muted mt-2">
+                                ✅ Padrão: <strong>200 imagens por tarefa</strong> no CVAT.
+                            </div>
+                            <div class="small text-muted mt-2 pt-2 border-top">
+                                Assim que 200 fotos forem baixadas, a task é criada e enviada imediatamente ao CVAT com o intervalo de datas no título.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Posicionamento PTZ da Câmera -->
+                    <div class="col-12">
+                        <div class="p-3 bg-light rounded border">
+                            <label class="form-label fw-bold small text-dark d-flex align-items-center gap-2 mb-2">
+                                <span>🎯</span> Posicionamento da Câmera (Digifort PTZ):
+                            </label>
+
+                            <div class="d-flex flex-column gap-2 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ptz_mode" id="ptz_mode_any" value="any" checked onchange="onPtzModeToggle()">
+                                    <label class="form-check-label small fw-bold text-dark" for="ptz_mode_any">
+                                        Filmar em qualquer posicionamento
+                                    </label>
+                                </div>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ptz_mode" id="ptz_mode_presets" value="presets" onchange="onPtzModeToggle()">
+                                    <label class="form-check-label small fw-bold text-dark" for="ptz_mode_presets">
+                                        Filmar apenas nos presets selecionados
+                                    </label>
+                                    <div class="text-muted small ps-4">
+                                        O coletor só grava quando a câmera estiver nos presets autorizados abaixo.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Seleção Dinâmica de Presets Cadastrados -->
+                            <div id="ptz-presets-selection-container" class="p-3 bg-white rounded border" style="display: none;">
+                                <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                    <span class="small fw-bold text-dark">Presets Autorizados para Gravação:</span>
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2" onclick="selectAllPresets(true)">Marcar Todos</button>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" onclick="selectAllPresets(false)">Desmarcar Todos</button>
+                                    </div>
+                                </div>
+
+                                <div id="presets-checkboxes-container" class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="text-muted small" id="no-presets-hint">
+                                        💡 Teste a conexão na Etapa 2 para listar os presets automaticamente, ou informe os IDs abaixo.
+                                    </span>
+                                </div>
+
+                                <div class="mt-2 pt-2 border-top">
+                                    <label for="manual_presets_input" class="form-label small text-muted mb-1">
+                                        Ou informe IDs manualmente (ex: 1, 5, 8):
+                                    </label>
+                                    <input type="text" class="form-control form-control-sm font-monospace" id="manual_presets_input" placeholder="Ex: 1, 5" oninput="onManualPresetsInput()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Remoção Automática após Upload -->
+                    <div class="col-12">
+                        <div class="form-check form-switch p-3 bg-light rounded border">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="auto_remove" id="auto_remove" checked onchange="updateSummary()">
+                            <label class="form-check-label fw-bold small text-dark" for="auto_remove">
+                                Remover imagens locais automaticamente após confirmação de upload pelo CVAT
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" onclick="goToStep(2)">
+                        ⬅ Voltar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary px-3" onclick="goToStep(4)">
+                        Avançar para Revisão & Ativação ➔
+                    </button>
+                </div>
+            </div>
+
+            <!-- ============================================================== -->
+            <!-- ETAPA 4: Revisão, Nomenclatura das Tasks & Ativação            -->
+            <!-- ============================================================== -->
+            <div class="card-neutral mb-4 p-3" id="step-4-card" style="display: none;">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="step-header-tag">4</span>
+                    <span class="fw-bold">Revisão & Inicialização</span>
+                </div>
+                <p class="text-muted small mb-3">
+                    Confira as configurações e inicie o worker.
+                </p>
+
+                <!-- Destaques: Nomenclatura das Tasks no CVAT e dos Arquivos de Foto -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <div class="card bg-white border p-3 h-100 shadow-xs">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="fs-5">🏷️</span>
+                                <span class="fw-bold small text-dark">Nomenclatura das Tasks no CVAT:</span>
+                            </div>
+                            <div class="p-2 bg-light rounded border font-monospace text-primary fw-bold small text-truncate" id="summary-task-title-preview">
+                                VO2C01 | 2026-11-13 08:00:00 a 2026-11-13 14:30:15
+                            </div>
+                            <span class="text-muted small mt-1 d-block" style="font-size: 0.75rem;">
+                                Formato: <code>{Projeto} | {Data Inicial} a {Data Final}</code>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-white border p-3 h-100 shadow-xs">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="fs-5">📷</span>
+                                <span class="fw-bold small text-dark">Nomenclatura dos Arquivos de Foto:</span>
+                            </div>
+                            <div class="p-2 bg-light rounded border font-monospace text-success fw-bold small text-truncate" id="summary-image-name-preview">
+                                2026-11-13_08-30-00_Preset-1_Medicao.jpg
+                            </div>
+                            <span class="text-muted small mt-1 d-block" style="font-size: 0.75rem;">
+                                Formato: <code>{Data_Hora}_{ID_e_Nome_Posicao}.jpg</code>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card com Resumo Geral dos Parâmetros -->
+                <div class="bg-light p-3 rounded border mb-3">
+                    <div class="row g-3 font-monospace small">
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Projeto CVAT:</span>
+                            <span class="fw-bold text-dark fs-6" id="summary-project">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Organização CVAT:</span>
+                            <span class="fw-bold text-dark fs-6" id="summary-org">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Regras de Lote:</span>
+                            <span class="fw-bold text-dark" id="summary-rules">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="text-muted d-block">Link da Câmera:</span>
+                            <span class="fw-bold text-dark text-break" id="summary-host">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Posicionamento PTZ:</span>
+                            <span class="fw-bold text-dark" id="summary-ptz">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Modo de Coleta:</span>
+                            <span class="fw-bold text-dark" id="summary-mode">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sincronização com a Pipeline (pipeline.env) -->
+                <div class="form-check form-switch p-3 bg-light rounded border mb-4">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" name="sync_pipeline" id="sync_pipeline" value="true" checked onchange="updateSummary()">
+                    <label class="form-check-label fw-bold small text-dark" for="sync_pipeline">
+                        Salvar e sincronizar também nos arquivos da Pipeline (pipeline.env, digifort-scripts/.env, cvat_scripts/.env)
+                    </label>
+                    <div class="text-muted small mt-1 ps-4">
+                        Configura a execução contínua via terminal (<code>uv run python pipeline.py</code>) com retry de 13s.
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-3" onclick="goToStep(3)">
+                        ⬅ Voltar
+                    </button>
+                    <button type="submit" class="btn btn-primary px-4 d-flex align-items-center gap-2">
+                        <span>🚀</span> Criar & Iniciar Worker em Background
+                    </button>
+                </div>
+            </div>
+
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentStep = 1;
+    let detectedPresets = [];
+    let currentCameraPreset = null;
+
+    function goToStep(step) {
+        currentStep = step;
+        for (let i = 1; i <= 4; i++) {
+            const card = document.getElementById(`step-${i}-card`);
+            const nav = document.getElementById(`step-nav-${i}`);
+            const arrow = document.getElementById(`step-arrow-${i}`);
+
+            if (card) card.style.display = (i === step) ? 'block' : 'none';
+
+            if (nav) {
+                nav.classList.remove('active', 'completed');
+                if (i === step) nav.classList.add('active');
+                else if (i < step) nav.classList.add('completed');
+            }
+
+            if (arrow) {
+                arrow.classList.remove('completed');
+                if (i < step) arrow.classList.add('completed');
+            }
+        }
+        updateSummary();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function onStepperClick(step) {
+        goToStep(step);
+    }
+
+    /* ==============================================================
+       RESOLUÇÃO AUTOMÁTICA DA CÂMERA (PASTA)
+       ============================================================== */
+    function extractCameraFromUrl(url) {
+        if (!url) return null;
+        try {
+            const m = url.match(/[?&](?:Camera|camera|cam)=([^&#]+)/i);
+            if (m && m[1]) return decodeURIComponent(m[1].trim());
+            // Se URL terminar em nome da câmera (ex: /Media/VO2C01)
+            const parsed = new URL(url.replace(/^rtsp:\/\//i, 'http://'));
+            const parts = parsed.pathname.split('/').filter(Boolean);
+            if (parts.length > 0) {
+                const last = parts[parts.length - 1];
+                if (!['media', 'getsnapshot', 'snapshot', 'live', 'mjpeg', 'video'].includes(last.toLowerCase())) {
+                    return last;
+                }
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function resolveAutoCameraName() {
+        const url = (document.getElementById('direct_url')?.value || '').trim();
+        const detected = extractCameraFromUrl(url);
+        if (detected) return detected;
+
+        const isExistingMode = document.getElementById('proj_mode_existing')?.checked;
+        if (isExistingMode) {
+            const projSelect = document.getElementById('cvat_project_id');
+            if (projSelect && projSelect.value) {
+                const opt = projSelect.options[projSelect.selectedIndex];
+                const pName = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
+                if (pName && pName !== '-- Selecione um projeto do CVAT --') return pName;
+            }
+        } else {
+            const newProj = (document.getElementById('new_project_name')?.value || '').trim();
+            if (newProj) return newProj;
+        }
+        return 'camera_01';
+    }
+
+    /* ==============================================================
+       ETAPA 1: LÓGICA DE PROJETO CVAT (EXISTENTE VS NOVO)
+       ============================================================== */
+    function onProjectModeToggle() {
+        const isExisting = document.getElementById('proj_mode_existing')?.checked;
+        const panelExisting = document.getElementById('panel-existing-project');
+        const panelNew = document.getElementById('panel-new-project');
+        const cardExisting = document.getElementById('mode-card-existing');
+        const cardNew = document.getElementById('mode-card-new');
+
+        if (panelExisting) panelExisting.style.display = isExisting ? 'block' : 'none';
+        if (panelNew) panelNew.style.display = isExisting ? 'none' : 'block';
+
+        if (cardExisting) {
+            cardExisting.classList.toggle('border-primary', isExisting);
+            cardExisting.classList.toggle('bg-light', !isExisting);
+        }
+        if (cardNew) {
+            cardNew.classList.toggle('border-primary', !isExisting);
+            cardNew.classList.toggle('bg-light', isExisting);
+        }
+
+        if (isExisting) {
+            onExistingProjectSelected();
+        } else {
+            onNewProjectInput();
+        }
+        updateSummary();
+    }
+
+    function onExistingProjectSelected() {
+        const select = document.getElementById('cvat_project_id');
+        const formProjName = document.getElementById('form_cvat_project_name');
+        const formOrg = document.getElementById('form_cvat_organization');
+
+        if (select && select.value) {
+            const opt = select.options[select.selectedIndex];
+            const projName = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
+            const projOrg = opt.getAttribute('data-org') || '';
+
+            if (formProjName) formProjName.value = projName;
+            if (formOrg) formOrg.value = projOrg;
+        } else {
+            if (formProjName) formProjName.value = '';
+        }
+        updateSummary();
+    }
+
+    function onNewProjectInput() {
+        const inputName = document.getElementById('new_project_name');
+        const selectOrg = document.getElementById('new_project_org');
+        const selectExisting = document.getElementById('cvat_project_id');
+        const formProjName = document.getElementById('form_cvat_project_name');
+        const formOrg = document.getElementById('form_cvat_organization');
+
+        if (selectExisting) selectExisting.value = '';
+
+        const nameVal = (inputName?.value || '').trim();
+        const orgVal = (selectOrg?.value || '').trim();
+
+        if (formProjName) formProjName.value = nameVal;
+        if (formOrg) formOrg.value = orgVal;
+
+        updateSummary();
+    }
+
+    /* ==============================================================
+       ETAPA 2: DEFINIR CÂMERA (CADASTRAR CÂMERA VS ESCOLHER CÂMERA)
+       ============================================================== */
+    function onCameraModeToggle() {
+        const isNew = document.getElementById('cam_mode_new')?.checked;
+        const panelNew = document.getElementById('panel-new-camera');
+        const panelSelect = document.getElementById('panel-select-camera');
+        const cardNew = document.getElementById('mode-card-cam-new');
+        const cardSelect = document.getElementById('mode-card-cam-select');
+
+        if (panelNew) panelNew.style.display = isNew ? 'block' : 'none';
+        if (panelSelect) panelSelect.style.display = isNew ? 'none' : 'block';
+
+        if (cardNew) {
+            cardNew.classList.toggle('border-primary', isNew);
+            cardNew.classList.toggle('bg-light', !isNew);
+        }
+        if (cardSelect) {
+            cardSelect.classList.toggle('border-primary', !isNew);
+            cardSelect.classList.toggle('bg-light', isNew);
+        }
+
+        if (!isNew) {
+            const select = document.getElementById('saved_links_select');
+            if (select && select.value) {
+                onSelectHistoryUrl(select.value);
+            }
+        }
+        updateSummary();
+    }
+
+    function maskUrlCredentials(url) {
+        if (!url) return '-';
+        return url.replace(/:\/\/([^:@\s]+):([^@\s]+)@/, '://$1:***@');
+    }
+
+    function onDirectUrlInput() {
+        const input = document.getElementById('direct_url');
+        const url = (input?.value || '').trim();
+        const indicator = document.getElementById('protocol-indicator');
+        const badgeCam = document.getElementById('detected-cam-badge');
+        const formSourceType = document.getElementById('form_source_type');
+        const formUseRtsp = document.getElementById('form_use_rtsp');
+        const formDigifortHost = document.getElementById('form_digifort_host');
+        const formSnapshotUrl = document.getElementById('form_snapshot_url');
+
+        if (formSnapshotUrl) formSnapshotUrl.value = url;
+
+        const isRtsp = url.toLowerCase().startsWith('rtsp://');
+        const isHttp = url.toLowerCase().startsWith('http://') || url.toLowerCase().startsWith('https://');
+
+        if (indicator) {
+            if (isRtsp) {
+                indicator.innerHTML = '<span class="badge bg-primary">RTSP</span>';
+            } else if (isHttp) {
+                indicator.innerHTML = '<span class="badge bg-info">HTTP</span>';
+            } else {
+                indicator.innerHTML = '🔗 LINK';
+            }
+        }
+
+        if (formSourceType) formSourceType.value = isRtsp ? 'rtsp' : 'digifort';
+        if (formUseRtsp) formUseRtsp.value = isRtsp ? 'true' : 'false';
+
+        // Extrai host se possível
+        if (formDigifortHost && (isRtsp || isHttp)) {
+            try {
+                const parseable = url.replace(/^rtsp:\/\//i, 'http://');
+                const u = new URL(parseable);
+                formDigifortHost.value = u.hostname || '';
+            } catch (e) {}
+        }
+
+        // Extrai identificador da câmera da URL se presente
+        const detectedCam = extractCameraFromUrl(url);
+        if (detectedCam) {
+            if (badgeCam) {
+                badgeCam.style.display = 'inline-block';
+                badgeCam.innerText = `Câmera: ${detectedCam}`;
+            }
+        } else {
+            if (badgeCam) badgeCam.style.display = 'none';
+        }
+
+        // Sincroniza dropdown de câmeras salvas
+        const select = document.getElementById('saved_links_select');
+        const btnDelete = document.getElementById('btn-delete-history');
+        if (select) {
+            let matched = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value && select.options[i].value.trim() === url) {
+                    select.selectedIndex = i;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                select.value = '';
+            }
+            if (btnDelete) {
+                btnDelete.disabled = !select.value;
+            }
+        }
+
+        updateSummary();
+    }
+
+    function onSelectHistoryUrl(url) {
+        const input = document.getElementById('direct_url');
+        const btnDelete = document.getElementById('btn-delete-history');
+        const hint = document.getElementById('selected-camera-hint');
+        if (btnDelete) {
+            btnDelete.disabled = !url;
+        }
+        if (hint) {
+            hint.innerText = url ? maskUrlCredentials(url) : '';
+        }
+        if (input && url) {
+            input.value = url;
+            onDirectUrlInput();
+        }
+    }
+
+    function clearDirectUrl() {
+        const input = document.getElementById('direct_url');
+        if (input) {
+            input.value = '';
+            onDirectUrlInput();
+            input.focus();
+        }
+        const select = document.getElementById('saved_links_select');
+        if (select) select.value = '';
+        const btnDelete = document.getElementById('btn-delete-history');
+        if (btnDelete) btnDelete.disabled = true;
+        const hint = document.getElementById('selected-camera-hint');
+        if (hint) hint.innerText = '';
+    }
+
+    async function deleteSelectedHistoryUrl() {
+        const select = document.getElementById('saved_links_select');
+        const url = select ? select.value : '';
+        if (!url) return;
+        await deleteHistoryUrl(url);
+    }
+
+    async function deleteHistoryUrl(url) {
+        if (!url) return;
+        if (!confirm('Deseja remover esta câmera do seu histórico?')) return;
+        try {
+            const resp = await fetch(`/acquisition/saved-urls?url=${encodeURIComponent(url)}`, {
+                method: 'DELETE'
+            });
+            await resp.json();
+            const input = document.getElementById('direct_url');
+            if (input && input.value.trim() === url.trim()) {
+                input.value = '';
+                onDirectUrlInput();
+            }
+            await refreshSavedLinksList();
+        } catch (err) {
+            console.error('Erro ao excluir do histórico:', err);
+        }
+    }
+
+    async function refreshSavedLinksList() {
+        try {
+            const resp = await fetch('/acquisition/saved-urls');
+            const data = await resp.json();
+            const cameras = data.cameras || [];
+            const urls = data.urls || [];
+            const select = document.getElementById('saved_links_select');
+            const btnDelete = document.getElementById('btn-delete-history');
+            const currentVal = (document.getElementById('direct_url')?.value || '').trim();
+
+            if (!select) return;
+
+            select.innerHTML = '';
+            if (urls.length === 0) {
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = '-- Nenhuma câmera salva ainda --';
+                select.appendChild(defaultOpt);
+                select.disabled = true;
+                if (btnDelete) btnDelete.disabled = true;
+                return;
+            }
+
+            select.disabled = false;
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = '-- Selecione uma câmera salva --';
+            select.appendChild(defaultOpt);
+
+            if (cameras.length > 0) {
+                cameras.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.url;
+                    opt.textContent = `🎥 ${c.label}`;
+                    opt.setAttribute('data-name', c.name);
+                    if (c.url === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } else {
+                urls.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u;
+                    opt.textContent = `🎥 ${u}`;
+                    if (u === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            }
+
+            if (btnDelete) {
+                btnDelete.disabled = !select.value;
+            }
+        } catch (err) {
+            console.error('Erro ao atualizar histórico:', err);
+        }
+    }
+
+    async function testSnapshot() {
+        const btn = document.getElementById('btn-test-snapshot');
+        const resultBox = document.getElementById('test-result-box');
+        const previewImg = document.getElementById('preview-image');
+        const badge = document.getElementById('test-status-badge');
+        const protoBadge = document.getElementById('test-protocol-badge');
+        const meta = document.getElementById('test-meta');
+        const directUrl = (document.getElementById('direct_url')?.value || '').trim();
+        const autoCam = resolveAutoCameraName();
+
+        if (!directUrl) {
+            if (window.showSystemAlert) {
+                window.showSystemAlert('Cole ou selecione o link da câmera antes de testar a conexão.', 'Atenção');
+            } else {
+                alert('Cole ou selecione o link da câmera antes de testar a conexão.');
+            }
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Conectando...';
+
+        const payload = {
+            direct_url: directUrl,
+            camera_name: autoCam
+        };
+
+        try {
+            const resp = await fetch('/acquisition/test-snapshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+
+            resultBox.style.display = 'block';
+            if (data.success && data.preview_base64) {
+                previewImg.src = data.preview_base64;
+                badge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold';
+                badge.innerText = '✓ Frame Capturado com Sucesso!';
+                if (protoBadge) protoBadge.innerText = data.protocol || (directUrl.toLowerCase().startsWith('rtsp://') ? 'RTSP' : 'HTTP');
+                meta.innerText = `${data.width ? data.width + 'x' + data.height + ' • ' : ''}${data.size_kb || '-'} KB`;
+
+                // Atualiza painel de telemetria e posicionamento PTZ
+                const ptzCard = document.getElementById('ptz-info-card');
+                if (data.camera_info && data.camera_info.available) {
+                    const info = data.camera_info;
+                    if (ptzCard) ptzCard.style.display = 'block';
+
+                    const ptzBadge = document.getElementById('ptz-support-badge');
+                    if (ptzBadge) {
+                        if (info.ptz_supported) {
+                            ptzBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle';
+                            ptzBadge.innerText = '🎯 PTZ Suportado';
+                        } else {
+                            ptzBadge.className = 'badge bg-secondary-subtle text-secondary border';
+                            ptzBadge.innerText = '📷 Câmera Fixa (Sem PTZ)';
+                        }
+                    }
+
+                    const panEl = document.getElementById('ptz-pan');
+                    const tiltEl = document.getElementById('ptz-tilt');
+                    const zoomEl = document.getElementById('ptz-zoom');
+                    const presetEl = document.getElementById('ptz-preset');
+
+                    if (panEl) panEl.innerText = (info.pan !== null && info.pan !== undefined) ? `${info.pan}°` : 'N/D';
+                    if (tiltEl) tiltEl.innerText = (info.tilt !== null && info.tilt !== undefined) ? `${info.tilt}°` : 'N/D';
+                    if (zoomEl) zoomEl.innerText = (info.zoom !== null && info.zoom !== undefined) ? `${info.zoom}` : 'N/D';
+
+                    let presetText = '-';
+                    currentCameraPreset = info.current_preset;
+                    if (info.current_preset !== null && info.current_preset !== undefined && info.current_preset >= 0) {
+                        presetText = `#${info.current_preset}${info.current_preset_name ? ' (' + info.current_preset_name + ')' : ''}`;
+                    } else if (info.ptz_supported) {
+                        presetText = 'Nenhum preset ativo';
+                    }
+                    if (presetEl) {
+                        presetEl.innerText = presetText;
+                        presetEl.title = presetText;
+                    }
+
+                    // Preenche campos ocultos do form
+                    const inputPan = document.getElementById('form_ptz_pan');
+                    const inputTilt = document.getElementById('form_ptz_tilt');
+                    const inputZoom = document.getElementById('form_ptz_zoom');
+                    const inputPreset = document.getElementById('form_ptz_preset');
+                    if (inputPan) inputPan.value = (info.pan !== null && info.pan !== undefined) ? info.pan : '';
+                    if (inputTilt) inputTilt.value = (info.tilt !== null && info.tilt !== undefined) ? info.tilt : '';
+                    if (inputZoom) inputZoom.value = (info.zoom !== null && info.zoom !== undefined) ? info.zoom : '';
+                    if (inputPreset) inputPreset.value = presetText !== '-' ? presetText : '';
+
+                    // Lista de presets no painel da Etapa 2
+                    detectedPresets = info.presets || [];
+                    const presetsBox = document.getElementById('ptz-presets-container');
+                    const presetsList = document.getElementById('ptz-presets-list');
+                    if (presetsBox && presetsList) {
+                        if (detectedPresets.length > 0) {
+                            presetsBox.style.display = 'block';
+                            presetsList.innerHTML = detectedPresets.map(p => `
+                                <span class="badge ${p.id === info.current_preset ? 'bg-primary text-white' : 'bg-light text-dark border'}">
+                                    #${p.id}: ${p.name}
+                                </span>
+                            `).join('');
+                        } else {
+                            presetsBox.style.display = 'none';
+                        }
+                    }
+
+                    // Constrói checkboxes dinâmicos para a Etapa 3
+                    renderPresetCheckboxes(detectedPresets, currentCameraPreset);
+
+                    const statusText = document.getElementById('ptz-status-text');
+                    if (statusText) {
+                        if (info.in_use) {
+                            statusText.innerText = `Status: Em uso por ${info.in_use_user || 'operador'}`;
+                        } else {
+                            statusText.innerText = 'Status: Câmera livre';
+                        }
+                    }
+
+                    const camBadge = document.getElementById('cam-active-badge');
+                    if (camBadge) {
+                        if (info.working === false) {
+                            camBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle';
+                            camBadge.innerText = 'Fora de Operação';
+                        } else {
+                            camBadge.className = 'badge bg-success-subtle text-success border border-success-subtle';
+                            camBadge.innerText = 'Online';
+                        }
+                    }
+                } else {
+                    if (ptzCard) ptzCard.style.display = 'none';
+                }
+
+                updateSummary();
+                refreshSavedLinksList();
+            } else {
+                badge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-bold';
+                badge.innerText = `✕ Falha: ${data.error || 'Não foi possível conectar'}`;
+                meta.innerText = '';
+                previewImg.src = '';
+                const ptzCard = document.getElementById('ptz-info-card');
+                if (ptzCard) ptzCard.style.display = 'none';
+            }
+        } catch (err) {
+            resultBox.style.display = 'block';
+            badge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-bold';
+            badge.innerText = `✕ Erro: ${err.message}`;
+            const ptzCard = document.getElementById('ptz-info-card');
+            if (ptzCard) ptzCard.style.display = 'none';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '📸 Testar Conexão & Snapshot';
+        }
+    }
+
+    /* ==============================================================
+       ETAPA 3: POSICIONAMENTO PTZ, PRESETS & MODO HISTÓRICO
+       ============================================================== */
+    function formatIntervalText(seconds) {
+        const s = parseInt(seconds, 10);
+        if (isNaN(s) || s <= 0) return `${seconds}s`;
+        if (s < 60) return `${s} segundo${s > 1 ? 's' : ''}`;
+        const mins = Math.floor(s / 60);
+        const remSec = s % 60;
+        if (mins < 60) {
+            return remSec > 0 ? `${mins} min e ${remSec}s` : `${mins} minuto${mins > 1 ? 's' : ''}`;
+        }
+        const hrs = Math.floor(mins / 60);
+        const remMin = mins % 60;
+        return remMin > 0 ? `${hrs}h ${remMin}m` : `${hrs} hora${hrs > 1 ? 's' : ''}`;
+    }
+
+    function setIntervalVal(val) {
+        const input = document.getElementById('interval_seconds');
+        if (input) {
+            input.value = val;
+            onIntervalInput();
+        }
+    }
+
+    function setImagesPerTaskVal(val) {
+        const input = document.getElementById('images_per_task');
+        if (input) {
+            input.value = val;
+            updateSummary();
+        }
+    }
+
+    function onIntervalInput() {
+        updateIntervalHint();
+        updateSummary();
+    }
+
+    function updateIntervalHint() {
+        const interval = document.getElementById('interval_seconds')?.value || '600';
+        const isHistory = document.getElementById('capture_mode_history')?.checked;
+        const hintContent = document.getElementById('interval-hint-content');
+        const formatted = formatIntervalText(interval);
+
+        if (hintContent) {
+            if (isHistory) {
+                hintContent.innerHTML = `<strong>Download Acelerado na Gravação:</strong> O sistema <strong>não espera</strong> esse tempo no mundo real durante a busca no Digifort. Ele avança a gravação rapidamente baixando <strong>1 foto a cada ${formatted}</strong> gravados até alcançar o tempo atual. A espera em tempo real só ocorrerá quando a gravação for concluída e entrar no modo ao vivo contínuo.`;
+            } else {
+                hintContent.innerHTML = `<strong>Captura em Tempo Real:</strong> No modo ao vivo contínuo, o sistema aguarda <strong>${formatted}</strong> no relógio entre cada foto capturada antes de montar o lote para o CVAT.`;
+            }
+        }
+    }
+
+    function onPtzModeToggle() {
+        const isPresets = document.getElementById('ptz_mode_presets')?.checked;
+        const container = document.getElementById('ptz-presets-selection-container');
+        if (container) {
+            container.style.display = isPresets ? 'block' : 'none';
+        }
+        updateSummary();
+    }
+
+    function renderPresetCheckboxes(presets, activePresetId) {
+        const container = document.getElementById('presets-checkboxes-container');
+        const hint = document.getElementById('no-presets-hint');
+        if (!container) return;
+
+        if (!presets || presets.length === 0) {
+            if (hint) hint.style.display = 'block';
+            return;
+        }
+
+        if (hint) hint.style.display = 'none';
+        container.innerHTML = '';
+
+        presets.forEach(p => {
+            const isCurrent = (p.id === activePresetId);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check form-check-inline border rounded px-2 py-1 bg-light';
+
+            const chk = document.createElement('input');
+            chk.className = 'form-check-input preset-chk';
+            chk.type = 'checkbox';
+            chk.name = 'selected_presets';
+            chk.value = p.id;
+            chk.id = `preset_chk_${p.id}`;
+            // Pré-marca o preset atual se houver
+            if (isCurrent) chk.checked = true;
+            chk.onchange = updateSummary;
+
+            const lbl = document.createElement('label');
+            lbl.className = 'form-check-label small fw-semibold cursor-pointer';
+            lbl.htmlFor = `preset_chk_${p.id}`;
+            lbl.innerText = `#${p.id}: ${p.name}${isCurrent ? ' (Atual)' : ''}`;
+
+            wrapper.appendChild(chk);
+            wrapper.appendChild(lbl);
+            container.appendChild(wrapper);
+        });
+
+        updateSummary();
+    }
+
+    function selectAllPresets(check) {
+        const checkboxes = document.querySelectorAll('.preset-chk');
+        checkboxes.forEach(c => c.checked = check);
+        updateSummary();
+    }
+
+    function onManualPresetsInput() {
+        updateSummary();
+    }
+
+    function onCaptureModeToggle() {
+        const isHistory = document.getElementById('capture_mode_history')?.checked;
+        const container = document.getElementById('historical-dates-container');
+        const cardHist = document.getElementById('card-mode-history');
+        const cardLive = document.getElementById('card-mode-live');
+        const lblInterval = document.getElementById('interval_label');
+
+        if (container) {
+            container.style.display = isHistory ? 'block' : 'none';
+        }
+        if (cardHist) {
+            cardHist.classList.toggle('border-primary', isHistory);
+            cardHist.classList.toggle('bg-light', !isHistory);
+        }
+        if (cardLive) {
+            cardLive.classList.toggle('border-primary', !isHistory);
+            cardLive.classList.toggle('bg-light', isHistory);
+        }
+        if (lblInterval) {
+            lblInterval.innerText = isHistory
+                ? 'Espaçamento entre Fotos na Gravação (Linha do Tempo):'
+                : 'Intervalo entre Fotos em Tempo Real (Segundos):';
+        }
+
+        if (isHistory) {
+            const startInput = document.getElementById('start_date');
+            if (startInput && !startInput.value) {
+                setHistoricalStartDate(24); // Padrão: 24h atrás
+            }
+        }
+
+        updateIntervalHint();
+        updateSummary();
+    }
+
+    function setHistoricalStartDate(hoursAgo) {
+        const startInput = document.getElementById('start_date');
+        if (!startInput) return;
+        const d = new Date(Date.now() - (hoursAgo * 3600 * 1000));
+        // Formata YYYY-MM-DDTHH:MM
+        const pad = (n) => String(n).padStart(2, '0');
+        const isoLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        startInput.value = isoLocal;
+        updateSummary();
+    }
+
+    /* ==============================================================
+       ETAPA 4: RESUMO & PREVIEW DA NOMENCLATURA DA TASK NO CVAT
+       ============================================================== */
+    function updateSummary() {
+        const isExistingMode = document.getElementById('proj_mode_existing')?.checked;
+        const projSelect = document.getElementById('cvat_project_id');
+        const newProjInput = document.getElementById('new_project_name');
+        const newOrgSelect = document.getElementById('new_project_org');
+        const url = document.getElementById('direct_url')?.value || '-';
+        const interval = document.getElementById('interval_seconds')?.value || '600';
+        const batch = document.getElementById('images_per_task')?.value || '200';
+        const remove = document.getElementById('auto_remove')?.checked;
+
+        // Auto-resolução da câmera (pasta)
+        const autoCam = resolveAutoCameraName();
+        const hiddenCam = document.getElementById('camera_name');
+        if (hiddenCam) hiddenCam.value = autoCam;
+
+        // Resolve nome do projeto e organização
+        let projName = autoCam;
+        let orgName = document.getElementById('form_cvat_organization')?.value || 'Pessoal';
+
+        if (isExistingMode) {
+            if (projSelect && projSelect.value) {
+                const opt = projSelect.options[projSelect.selectedIndex];
+                projName = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
+                const org = opt.getAttribute('data-org');
+                orgName = org ? org : 'Pessoal';
+            } else {
+                projName = '(Novo projeto no CVAT)';
+            }
+        } else {
+            const customNew = (newProjInput?.value || '').trim();
+            if (customNew) {
+                projName = customNew;
+            } else {
+                projName = autoCam;
+            }
+            const selOrg = newOrgSelect?.value;
+            orgName = selOrg ? selOrg : 'Pessoal';
+        }
+
+        // Modo PTZ
+        const isPtzPresets = document.getElementById('ptz_mode_presets')?.checked;
+        let ptzText = 'Qualquer posicionamento';
+        if (isPtzPresets) {
+            const checkedBoxes = Array.from(document.querySelectorAll('.preset-chk:checked')).map(c => c.value);
+            const manual = (document.getElementById('manual_presets_input')?.value || '').trim();
+            let allPresets = [...checkedBoxes];
+            if (manual) {
+                manual.split(',').forEach(s => {
+                    const clean = s.trim();
+                    if (clean && !allPresets.includes(clean)) allPresets.push(clean);
+                });
+            }
+            if (allPresets.length > 0) {
+                ptzText = `Apenas nos presets: [${allPresets.join(', ')}]`;
+            } else {
+                ptzText = 'Apenas presets selecionados (Nenhum marcado)';
+            }
+        }
+
+        // Modo Temporal
+        const isHistory = document.getElementById('capture_mode_history')?.checked;
+        const startVal = document.getElementById('start_date')?.value;
+        const endVal = document.getElementById('end_date')?.value;
+        let modeText = 'Ao Vivo (Tempo Real)';
+        let startDateFormatted = '';
+        let endDateFormatted = '';
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatDt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+        const intervalFormatted = formatIntervalText(interval);
+
+        if (isHistory && startVal) {
+            const startD = new Date(startVal);
+            startDateFormatted = formatDt(startD);
+            if (endVal) {
+                const endD = new Date(endVal);
+                endDateFormatted = formatDt(endD);
+                modeText = `Gravações Históricas: de ${startDateFormatted} até ${endDateFormatted}`;
+            } else {
+                modeText = `Gravações Históricas: de ${startDateFormatted} até o presente (Avanço a cada ${intervalFormatted})`;
+            }
+        } else {
+            modeText = `Ao Vivo: Captura contínua a cada ${intervalFormatted}`;
+            const now = new Date();
+            startDateFormatted = formatDt(now);
+            const estEnd = new Date(now.getTime() + (parseInt(interval, 10) * parseInt(batch, 10) * 1000));
+            endDateFormatted = formatDt(estEnd);
+        }
+
+        if (!endDateFormatted && startDateFormatted) {
+            const sD = new Date(startVal || Date.now());
+            const estEnd = new Date(sD.getTime() + (parseInt(interval, 10) * parseInt(batch, 10) * 1000));
+            endDateFormatted = formatDt(estEnd);
+        }
+
+        // Preview da Task no CVAT: {Projeto} | {Data Inicial} a {Data Final com HH:MM:SS}
+        const taskPreview = `${projName} | ${startDateFormatted} a ${endDateFormatted}`;
+        const previewEl = document.getElementById('summary-task-title-preview');
+        if (previewEl) previewEl.innerText = taskPreview;
+
+        // Preview do Nome do Arquivo da Imagem com Posição da Câmera
+        let sampleTag = '';
+        if (currentCameraPreset !== null && currentCameraPreset !== undefined && currentCameraPreset >= 0) {
+            const presetObj = detectedPresets.find(p => p.id === currentCameraPreset);
+            const pName = presetObj ? presetObj.name.replace(/[^a-zA-Z0-9_-]/g, '-') : '';
+            sampleTag = pName ? `_Preset-${currentCameraPreset}_${pName}` : `_Preset-${currentCameraPreset}`;
+        } else if (isPtzPresets && allPresets.length > 0) {
+            const firstId = allPresets[0];
+            const pObj = detectedPresets.find(p => String(p.id) === String(firstId));
+            const pName = pObj ? pObj.name.replace(/[^a-zA-Z0-9_-]/g, '-') : '';
+            sampleTag = pName ? `_Preset-${firstId}_${pName}` : `_Preset-${firstId}`;
+        }
+        const sampleImageName = `2026-11-13_08-30-00${sampleTag}.jpg`;
+        const imgNameEl = document.getElementById('summary-image-name-preview');
+        if (imgNameEl) imgNameEl.innerText = sampleImageName;
+
+        // Atualiza campos de texto do resumo
+        const elProj = document.getElementById('summary-project');
+        const elOrg = document.getElementById('summary-org');
+        const elCam = document.getElementById('summary-camera');
+        const elHost = document.getElementById('summary-host');
+        const elRules = document.getElementById('summary-rules');
+        const elPtz = document.getElementById('summary-ptz');
+        const elMode = document.getElementById('summary-mode');
+
+        if (elProj) elProj.innerText = projName;
+        if (elOrg) elOrg.innerText = orgName;
+        if (elCam) elCam.innerText = autoCam;
+        if (elHost) elHost.innerText = maskUrlCredentials(url);
+        if (elRules) {
+            if (isHistory) {
+                elRules.innerText = `Avanço na gravação: 1 foto a cada ${intervalFormatted} • Lote: ${batch} fotos • ${remove ? 'Auto-remover' : 'Manter locais'}`;
+            } else {
+                elRules.innerText = `Foto a cada ${intervalFormatted} em tempo real • Lote: ${batch} fotos • ${remove ? 'Auto-remover' : 'Manter locais'}`;
+            }
+        }
+        if (elPtz) elPtz.innerText = ptzText;
+        if (elMode) elMode.innerText = modeText;
+    }
+
+    function validateForm() {
+        const url = document.getElementById('direct_url')?.value.trim();
+        const isExistingMode = document.getElementById('proj_mode_existing')?.checked;
+        const projSelect = document.getElementById('cvat_project_id');
+        const autoCam = resolveAutoCameraName();
+        const hiddenCam = document.getElementById('camera_name');
+        if (hiddenCam) hiddenCam.value = autoCam;
+
+        if (isExistingMode && (!projSelect || !projSelect.value)) {
+            goToStep(1);
+            if (window.showSystemAlert) window.showSystemAlert('Selecione um projeto existente do CVAT no Passo 1 ou alterne para a opção "Criar Novo Projeto".', 'Projeto Não Selecionado');
+            return false;
+        }
+
+        if (!url) {
+            goToStep(2);
+            if (window.showSystemAlert) window.showSystemAlert('Cole ou selecione o link da câmera no Passo 2.', 'Link da Câmera Ausente');
+            return false;
+        }
+
+        const isHistory = document.getElementById('capture_mode_history')?.checked;
+        const startVal = document.getElementById('start_date')?.value;
+        if (isHistory && !startVal) {
+            goToStep(3);
+            if (window.showSystemAlert) window.showSystemAlert('No modo de gravações históricas, informe a Data e Hora de Início.', 'Data Inicial Ausente');
+            return false;
+        }
+
+        return true;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        onDirectUrlInput();
+        onProjectModeToggle();
+        onCameraModeToggle();
+        onCaptureModeToggle();
+    });
+</script>
+{% endblock %}

@@ -58,6 +58,22 @@ def image_date(name):
             return datetime.strptime(stem, pattern)
         except ValueError:
             pass
+    # Suporte a sufixo de metadados / posição da câmera (ex: 2026-10-29_08-00-00_Preset-1_Medicao.jpg)
+    m = re.match(r"^(\d{4}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2}(?:[-_]\d{1,6})?)", stem)
+    if m:
+        prefix = m.group(1)
+        for pattern in DATE_FORMATS:
+            try:
+                return datetime.strptime(prefix, pattern)
+            except ValueError:
+                pass
+    m2 = re.match(r"^(\d{4}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2})", stem)
+    if m2:
+        for pattern in DATE_FORMATS:
+            try:
+                return datetime.strptime(m2.group(1), pattern)
+            except ValueError:
+                pass
     return None
 
 

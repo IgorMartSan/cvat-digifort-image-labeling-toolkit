@@ -42,15 +42,62 @@ def check_cvat_connection() -> Dict[str, Any]:
 
 
 def list_projects() -> List[Dict[str, Any]]:
-    """Lista todos os projetos disponíveis."""
+    """Lista todos os projetos disponíveis em todas as organizações visíveis pela conta e pessoais."""
     with get_cvat_client() as client:
         projects = []
-        for p in client.projects.list():
-            projects.append({
-                "id": int(p.id),
-                "name": str(p.name),
-            })
-        return sorted(projects, key=lambda x: x["name"].lower())
+        seen_ids = set()
+
+        # 1. Projetos pessoais (sem organização)
+        try:
+            client.organization_slug = ""
+            for p in client.projects.list():
+                if p.id not in seen_ids:
+                    seen_ids.add(p.id)
+                    projects.append({
+                        "id": int(p.id),
+                        "name": str(p.name),
+                        "organization": "",
+                        "display_name": f"{p.name} (Sem organização)",
+                    })
+        except Exception:
+            pass
+
+        # 2. Projetos em cada organização acessível
+        try:
+            orgs = list(client.organizations.list())
+            for org in orgs:
+                slug = getattr(org, "slug", "")
+                name = getattr(org, "name", slug)
+                client.organization_slug = slug
+                for p in client.projects.list():
+                    if p.id not in seen_ids:
+                        seen_ids.add(p.id)
+                        projects.append({
+                            "id": int(p.id),
+                            "name": str(p.name),
+                            "organization": slug,
+                            "display_name": f"{p.name} [{slug}]",
+                        })
+        except Exception:
+            pass
+
+        return sorted(projects, key=lambda x: (x.get("organization") or "", x["name"].lower()))
+
+
+def list_organizations() -> List[Dict[str, str]]:
+    """Lista todas as organizações CVAT acessíveis pela conta."""
+    with get_cvat_client() as client:
+        try:
+            return [
+                {
+                    "slug": str(getattr(org, "slug", "")),
+                    "name": str(getattr(org, "name", "") or getattr(org, "slug", "")),
+                }
+                for org in client.organizations.list()
+                if getattr(org, "slug", None)
+            ]
+        except Exception:
+            return []
 
 
 def task_is_completed(task: Any) -> Tuple[bool, str]:

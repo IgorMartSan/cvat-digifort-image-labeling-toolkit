@@ -1,0 +1,70 @@
+{% extends "common/templates/base.html" %}
+
+{% block title %}Workers de Aquisição - CVAT AI Toolkit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Cabeçalho Principal -->
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h4 class="fw-bold mb-1">Painel de Workers • Aquisição de Câmeras</h4>
+                <p class="text-muted small mb-0">
+                    Acompanhe em tempo real a captura contínua de fotos e criação de tarefas no CVAT pelos workers em execução.
+                </p>
+            </div>
+            <a href="/acquisition/digifort" class="btn btn-primary d-flex align-items-center gap-2">
+                <span>➕</span> Nova Conexão Digifort
+            </a>
+        </div>
+
+        <!-- Container de Cards dos Workers (com auto-refresh via HTMX a cada 4s) -->
+        <div id="workers-cards-container"
+             hx-get="/acquisition/workers/cards"
+             hx-trigger="every 4s"
+             hx-swap="innerHTML">
+            {% include "acquisition/templates/_workers_cards.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function controlWorker(workerId, action) {
+        try {
+            const resp = await fetch(`/acquisition/workers/${workerId}/control?action=${action}`, {
+                method: 'POST'
+            });
+            if (resp.ok) {
+                // Força refresh imediato via HTMX
+                htmx.ajax('GET', '/acquisition/workers/cards', '#workers-cards-container');
+            } else {
+                const err = await resp.json();
+                window.showSystemAlert(`Falha ao executar ação: ${err.detail || 'Erro desconhecido'}`, 'Erro no Worker');
+            }
+        } catch (e) {
+            window.showSystemAlert(`Erro de conexão: ${e.message}`, 'Erro no Worker');
+        }
+    }
+
+    async function deleteWorker(workerId) {
+        if (!confirm('Deseja realmente excluir este worker? A captura contínua será interrompida.')) {
+            return;
+        }
+        try {
+            const resp = await fetch(`/acquisition/workers/${workerId}`, {
+                method: 'DELETE'
+            });
+            if (resp.ok) {
+                htmx.ajax('GET', '/acquisition/workers/cards', '#workers-cards-container');
+            } else {
+                const err = await resp.json();
+                window.showSystemAlert(`Falha ao excluir worker: ${err.detail || 'Erro desconhecido'}`, 'Erro ao Excluir');
+            }
+        } catch (e) {
+            window.showSystemAlert(`Erro de conexão: ${e.message}`, 'Erro ao Excluir');
+        }
+    }
+</script>
+{% endblock %}

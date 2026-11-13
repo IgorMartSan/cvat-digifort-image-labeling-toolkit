@@ -32,6 +32,25 @@
             <div class="d-flex align-items-center gap-3">
                 <span class="brand-title">⚡ CVAT AI Toolkit</span>
                 <nav class="d-flex align-items-center gap-1 ms-3">
+                    <!-- Dropdown Aquisição de Imagens -->
+                    <div class="dropdown">
+                        <a href="/acquisition/digifort" class="nav-tab-link dropdown-toggle {% if active_tab == 'acquisition' %}active{% endif %}" id="dropdownAcquisition" data-bs-toggle="dropdown" aria-expanded="false">
+                            📹 Aquisição de Imagens
+                        </a>
+                        <ul class="dropdown-menu shadow-sm border mt-1" aria-labelledby="dropdownAcquisition" style="font-size: 0.9rem;">
+                            <li>
+                                <a class="dropdown-item py-2 d-flex align-items-center gap-2 {% if active_tab == 'acquisition' and active_subtab == 'new' and active_source == 'digifort' %}fw-bold text-primary{% endif %}" href="/acquisition/digifort">
+                                    <span>🎥</span> Digifort
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2 d-flex align-items-center gap-2 {% if active_tab == 'acquisition' and active_subtab == 'workers' %}fw-bold text-primary{% endif %}" href="/acquisition/workers">
+                                    <span>📡</span> Workers Ativos
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
                     <!-- Dropdown Treinamento -->
                     <div class="dropdown">
                         <a href="/training" class="nav-tab-link dropdown-toggle {% if active_tab == 'training' %}active{% endif %}" id="dropdownTraining" data-bs-toggle="dropdown" aria-expanded="false">

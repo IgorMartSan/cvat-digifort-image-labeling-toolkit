@@ -33,6 +33,10 @@ class PlanningTests(unittest.TestCase):
             self.assertEqual(main.image_date(name), START)
         self.assertEqual(main.image_date("2026-10-29_08-00-00_123456.jpg"), START.replace(microsecond=123456))
         self.assertEqual(main.image_date("2026_10_29_08_00_00_123456.png"), START.replace(microsecond=123456))
+        self.assertEqual(main.image_date("2026-10-29_08-00-00_Preset-1_Medicao.jpg"), START)
+        self.assertEqual(main.image_date("2026-10-29_08-00-00_123456_Preset-1_Medicao.jpg"), START.replace(microsecond=123456))
+        self.assertEqual(main.image_date("2026-10-29_08-00-00_P1-Medicao.jpg"), START)
+        self.assertEqual(main.image_date("2026-10-29_08-00-00_P1.jpg"), START)
         self.assertIsNone(main.image_date("image.jpg"))
 
     def test_batches_have_limit_and_chronological_ranges(self):

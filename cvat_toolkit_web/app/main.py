@@ -13,6 +13,7 @@ from app.core.templates import templates
 from app.modules.training.router import router as training_router
 from app.modules.prediction.router import router as prediction_router
 from app.modules.jobs.router import router as jobs_router
+from app.modules.acquisition.router import router as acquisition_router
 
 
 @asynccontextmanager
@@ -20,7 +21,12 @@ async def lifespan(app: FastAPI):
     ensure_system_dirs()
     # Inicializa medição de telemetria
     get_system_resources()
+    # Retoma workers de aquisição marcados como ativos
+    from app.core.acquisition_manager import acquisition_manager
+    acquisition_manager.resume_saved_workers()
     yield
+    # Encerramento gracioso: salva checkpoints de todos os workers
+    acquisition_manager.stop_all_workers()
 
 
 app = FastAPI(
@@ -40,6 +46,7 @@ app.mount("/model_files", StaticFiles(directory=str(MODELS_DIR)), name="model_fi
 app.include_router(training_router)
 app.include_router(prediction_router)
 app.include_router(jobs_router)
+app.include_router(acquisition_router)
 
 
 @app.get("/")

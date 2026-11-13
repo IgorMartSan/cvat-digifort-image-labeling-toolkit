@@ -158,7 +158,15 @@ def latest_capture(camera):
             try:
                 captured = datetime.strptime(path.stem, pattern).timestamp()
             except ValueError:
-                continue
+                # Suporte a sufixo de metadados / posição da câmera
+                m = re.match(r"^(\d{4}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2}[-_]\d{2}(?:[-_]\d+)?)", path.stem)
+                if m:
+                    try:
+                        captured = datetime.strptime(m.group(1), pattern).timestamp()
+                    except ValueError:
+                        continue
+                else:
+                    continue
             latest = captured if latest is None else max(latest, captured)
             break
     return latest

@@ -1,0 +1,212 @@
+{% if not workers %}
+<div class="card-neutral p-5 text-center">
+    <div class="fs-1 mb-2">📡</div>
+    <h5 class="fw-bold mb-1">Nenhum worker de aquisição ativo</h5>
+    <p class="text-muted small mb-4">
+        Conecte uma câmera do Digifort para iniciar a captura automática de imagens e criação contínua de tarefas no CVAT.
+    </p>
+    <div>
+        <a href="/acquisition/digifort" class="btn btn-primary px-4 d-inline-flex align-items-center gap-2">
+            <span>➕</span> Nova Conexão Digifort
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="row g-3">
+    {% for w in workers %}
+    <div class="col-12 col-xl-6">
+        <div class="card-neutral p-3 h-100 d-flex flex-column justify-content-between">
+            <!-- Header do Card -->
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fs-5">📹</span>
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">{{ w.camera_name }}</h6>
+                            <span class="text-muted font-monospace small" style="font-size: 0.72rem;">ID: {{ w.id }}</span>
+                        </div>
+                    </div>
+                    <div>
+                        {% if w.status == 'running' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold">
+                            🟢 Em Execução
+                        </span>
+                        {% elif w.status == 'paused' %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 fw-bold">
+                            ⏸️ Pausado
+                        </span>
+                        {% elif w.status == 'reconnecting' %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fw-bold">
+                            🟡 Reconectando (13s)
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 fw-bold">
+                            ⏹️ Parado
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Bloco de Posição da Gravação Histórica (Tempo Atual do Vídeo) -->
+                {% if w.capture_mode == 'history' or w.current_recording_time %}
+                <div class="p-2 mb-3 rounded border bg-primary-subtle border-primary-subtle">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-4">⏱️</span>
+                            <div>
+                                <span class="text-uppercase text-primary-emphasis fw-bold d-block" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                                    Posição Atual da Gravação
+                                </span>
+                                <span class="fw-bold font-monospace text-primary fs-5">
+                                    {{ w.current_recording_time or 'Calculando ponto de partida...' }}
+                                </span>
+                            </div>
+                        </div>
+                        {% if w.history_progress_percent is not none %}
+                        <div class="text-end">
+                            <span class="badge bg-primary text-white font-monospace px-2 py-1 fs-6">
+                                {{ w.history_progress_percent }}%
+                            </span>
+                            <span class="text-muted d-block small" style="font-size: 0.65rem;">do período</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if w.history_progress_percent is not none %}
+                    <div class="progress mt-1 mb-1" style="height: 6px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                             role="progressbar"
+                             style="width: {{ w.history_progress_percent }}%;"
+                             aria-valuenow="{{ w.history_progress_percent }}"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted font-monospace" style="font-size: 0.68rem;">
+                        <span>Início: {{ w.history_start_formatted or '-' }}</span>
+                        <span>Fim: {{ w.history_end_formatted or 'Ao vivo' }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="mt-2 pt-1 border-top border-primary-subtle d-flex align-items-center justify-content-between small text-muted" style="font-size: 0.7rem;">
+                        <span class="d-flex align-items-center gap-1">
+                            <span>💾</span>
+                            <span>Ponto salvo em <code>.history.json</code> (continua onde parou)</span>
+                        </span>
+                        <span class="badge bg-white text-primary border border-primary-subtle font-monospace" style="font-size: 0.65rem;">
+                            Retomada Contínua
+                        </span>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Informações e Métricas -->
+                <div class="bg-light p-2 rounded border mb-3 small font-monospace">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Servidor / Origem:</span>
+                        <span class="text-dark fw-bold text-truncate" style="max-width: 250px;">{{ w.digifort_host or '-' }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Projeto CVAT:</span>
+                        <span class="text-dark fw-bold">{{ w.cvat_project_name or ('Projeto ' ~ w.camera_name) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Regra de Lote:</span>
+                        <span class="text-dark">Foto a cada {{ w.interval_seconds|int }}s • Task a cada {{ w.images_per_task }} fotos</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Modo de Operação:</span>
+                        <span class="text-dark fw-semibold">
+                            {% if w.capture_mode == 'history' %}
+                            🕒 Histórico Digifort (Passado ➔ Ao Vivo)
+                            {% else %}
+                            🔴 Ao Vivo Contínuo
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Status Atual:</span>
+                        <span class="text-secondary text-truncate" style="max-width: 280px;" title="{{ w.last_status_message }}">{{ w.last_status_message }}</span>
+                    </div>
+                </div>
+
+                <!-- Contadores em Cards Menores -->
+                <div class="row g-2 mb-3 text-center">
+                    <div class="col-6 col-sm-3">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted small d-block" style="font-size: 0.7rem;">Fotos Salvas</span>
+                            <span class="fw-bold font-monospace text-primary fs-6">{{ w.captured_count }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted small d-block" style="font-size: 0.7rem;">Tasks CVAT</span>
+                            <span class="fw-bold font-monospace text-success fs-6">{{ w.tasks_created }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted small d-block" style="font-size: 0.7rem;">
+                                {% if w.capture_mode == 'history' %}Hora no Vídeo{% else %}Última Captura{% endif %}
+                            </span>
+                            <span class="fw-bold font-monospace text-dark" style="font-size: 0.8rem;">{{ w.last_capture_time or '-' }}</span>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-3">
+                        <div class="p-2 border rounded bg-white">
+                            <span class="text-muted small d-block" style="font-size: 0.7rem;">
+                                {% if w.capture_mode == 'history' %}Retomada{% else %}Próxima Captura{% endif %}
+                            </span>
+                            <span class="fw-bold font-monospace text-success" style="font-size: 0.8rem;">
+                                {% if w.capture_mode == 'history' %}Automática{% else %}{{ w.next_capture_time or '-' }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Console de Logs Recentes -->
+                {% if w.logs %}
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="text-muted small fw-bold" style="font-size: 0.72rem;">Logs Recentes do Worker:</span>
+                    </div>
+                    <div class="bg-dark text-light p-2 rounded font-monospace small" style="font-size: 0.72rem; max-height: 110px; overflow-y: auto;">
+                        {% for log in w.logs %}
+                        <div class="text-truncate">{{ log }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Botões de Ação do Worker -->
+            <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                <div class="d-flex gap-2">
+                    {% if w.status == 'running' %}
+                    <button type="button" class="btn btn-xs btn-outline-warning py-1 px-2 small" onclick="controlWorker('{{ w.id }}', 'pause')">
+                        ⏸️ Pausar
+                    </button>
+                    {% elif w.status == 'paused' %}
+                    <button type="button" class="btn btn-xs btn-outline-success py-1 px-2 small" onclick="controlWorker('{{ w.id }}', 'resume')">
+                        ▶️ Retomar
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-xs btn-outline-success py-1 px-2 small" onclick="controlWorker('{{ w.id }}', 'start')">
+                        ▶️ Iniciar
+                    </button>
+                    {% endif %}
+
+                    {% if w.status != 'stopped' %}
+                    <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2 small" onclick="controlWorker('{{ w.id }}', 'stop')">
+                        ⏹️ Parar
+                    </button>
+                    {% endif %}
+                </div>
+
+                <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 small" onclick="deleteWorker('{{ w.id }}')">
+                    🗑️ Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
