@@ -9,6 +9,9 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllDestTasks(true)">
                 Marcar Todas
             </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectOnlyNewDestTasks()">
+                ⚪ Apenas Sem Anotação
+            </button>
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllDestTasks(false)">
                 Limpar
             </button>
@@ -28,7 +31,7 @@
                     </th>
                     <th style="width: 90px;">ID</th>
                     <th>Nome da Tarefa</th>
-                    <th style="width: 140px;">Status / Estado</th>
+                    <th style="width: 190px;">Estágio / Status no CVAT</th>
                     <th style="width: 120px; text-align: right;">Qtd. Imagens</th>
                 </tr>
             </thead>
@@ -36,14 +39,37 @@
                 {% for task in tasks %}
                 <tr class="task-row" style="cursor: pointer;" onclick="toggleDestTaskRow(event, {{ task.id }})">
                     <td class="text-center" onclick="event.stopPropagation()">
-                        <input type="checkbox" name="dest_task_ids" value="{{ task.id }}" id="dest-task-cb-{{ task.id }}" class="form-check-input dest-task-checkbox" onchange="updateDestTaskCount()">
+                        <input type="checkbox" name="dest_task_ids" value="{{ task.id }}" id="dest-task-cb-{{ task.id }}" data-stage="{{ task.stage }}" data-status="{{ task.status }}" data-completed="{{ 'true' if task.completed else 'false' }}" class="form-check-input dest-task-checkbox" onchange="updateDestTaskCount()">
                     </td>
                     <td><code class="text-secondary font-monospace">#{{ task.id }}</code></td>
                     <td class="fw-medium text-dark">{{ task.name }}</td>
                     <td>
-                        <span class="badge-clean-neutral">{{ task.state }}</span>
+                        {% if task.completed or task.status == 'completed' or task.state == 'completed' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold">
+                            ✓ Concluído
+                        </span>
+                        {% elif task.stage == 'validation' or task.status == 'validation' %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 fw-bold">
+                            🟡 Pré-Anotado (Validação)
+                        </span>
+                        {% elif task.state == 'in progress' %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-bold">
+                            🔵 Em Andamento
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1">
+                            ⚪ {{ task.status_label or task.state or 'Novo' }}
+                        </span>
+                        {% endif %}
                     </td>
-                    <td class="text-end font-monospace">{{ task.images_count }}</td>
+                    <td class="text-end font-monospace">
+                        {{ task.images_count }}
+                        {% if task.deleted_count and task.deleted_count > 0 %}
+                        <span class="badge bg-secondary-subtle text-muted ms-1" title="{{ task.deleted_count }} foto(s) excluída(s) no CVAT" style="font-size: 0.72rem;">
+                            -{{ task.deleted_count }}
+                        </span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -89,6 +115,15 @@
             master.checked = isChecked;
             master.indeterminate = false;
         }
+        updateDestTaskCount();
+    }
+
+    function selectOnlyNewDestTasks() {
+        document.querySelectorAll('.dest-task-checkbox').forEach(cb => {
+            const isCompleted = cb.dataset.completed === 'true';
+            const isValidation = cb.dataset.stage === 'validation' || cb.dataset.status === 'validation';
+            cb.checked = !isCompleted && !isValidation;
+        });
         updateDestTaskCount();
     }
 

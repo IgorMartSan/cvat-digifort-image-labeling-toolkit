@@ -12,13 +12,13 @@ class AnalyzeRequest(BaseModel):
 class StartTrainRequest(BaseModel):
     project_id: int
     task_ids: List[int]
-    mode: str = Field(default="detection", pattern="^(detection|segmentation)$")
+    mode: str = Field(pattern="^(detection|segmentation)$")
     derive_polygons: bool = True
     train_all_images: bool = False
     model_name: str = "yolo11n"
     custom_weights: Optional[str] = None
     sample_limit: Optional[int] = None
-    epochs: int = Field(default=100, ge=1, le=1000)
+    epochs: int = Field(default=1000, ge=1, le=10000)
     batch: int = Field(default=16, ge=-1)
     image_size: int = Field(default=640, ge=32)
     device: str = "auto"

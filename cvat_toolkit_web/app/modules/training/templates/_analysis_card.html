@@ -286,16 +286,18 @@
                 <div class="row g-3">
                     <!-- Modalidade -->
                     <div class="col-md-4">
-                        <label class="form-label small fw-semibold">Tipo de Treinamento</label>
-                        <select class="form-select" name="mode" id="train-mode" onchange="handleModeChange(this.value)">
-                            <option value="detection" selected>Detection (Bounding Boxes)</option>
+                        <label class="form-label small fw-semibold">Tipo de Treinamento <span class="text-danger">*</span></label>
+                        <select class="form-select" name="mode" id="train-mode" required onchange="handleModeChange(this.value)">
+                            <option value="" disabled selected>-- Selecione o Tipo (Obrigatório) --</option>
+                            <option value="detection">Detection (Bounding Boxes)</option>
                             <option value="segmentation">Segmentation (Polígonos)</option>
                         </select>
+                        <div class="invalid-feedback small">Por favor, selecione o tipo de treinamento.</div>
                     </div>
 
                     <!-- Derivar polígonos -->
                     <div class="col-md-4 d-flex align-items-end">
-                        <div class="form-check mb-2" id="derive-polygons-container">
+                        <div class="form-check mb-2" id="derive-polygons-container" style="display: none;">
                             <input class="form-check-input" type="checkbox" name="derive_polygons" id="derive_polygons" checked>
                             <label class="form-check-label small" for="derive_polygons">
                                 Converter polígonos em Bounding Boxes
@@ -312,7 +314,7 @@
                     <!-- Épocas -->
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">Épocas (Epochs)</label>
-                        <input type="number" class="form-control" name="epochs" value="100" min="1" max="1000">
+                        <input type="number" class="form-control" name="epochs" value="1000" min="1" max="10000">
                     </div>
 
                     <!-- Batch -->
@@ -382,10 +384,10 @@
                         <span class="text-muted">Imagens:</span> <strong id="summary-images" class="text-dark">Apenas Anotadas</strong>
                     </div>
                     <div class="col-md-3">
-                        <span class="text-muted">Modalidade:</span> <strong id="summary-mode" class="text-dark">Detection</strong>
+                        <span class="text-muted">Modalidade:</span> <strong id="summary-mode" class="text-dark">—</strong>
                     </div>
                     <div class="col-md-3">
-                        <span class="text-muted">Épocas:</span> <strong id="summary-epochs" class="text-dark">100</strong>
+                        <span class="text-muted">Épocas:</span> <strong id="summary-epochs" class="text-dark">1000</strong>
                     </div>
                     <div class="col-md-3">
                         <span class="text-muted">Batch Size:</span> <strong id="summary-batch" class="text-dark">16</strong>
@@ -437,9 +439,13 @@
     }
 
     function handleModeChange(mode) {
+        const modeEl = document.getElementById('train-mode');
+        if (modeEl && mode) {
+            modeEl.classList.remove('is-invalid');
+        }
         const deriveContainer = document.getElementById('derive-polygons-container');
         if (deriveContainer) {
-            deriveContainer.style.display = (mode === 'segmentation') ? 'none' : 'block';
+            deriveContainer.style.display = (mode === 'detection') ? 'block' : 'none';
         }
         if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
     }
@@ -482,13 +488,21 @@
         if (imgsEl) imgsEl.innerText = allImgs ? 'Todas as Imagens (c/ Fundo Negativo)' : 'Apenas Imagens Anotadas';
 
         // Modo
-        const mode = fd.get('mode') || 'detection';
+        const mode = fd.get('mode') || '';
         const modeEl = document.getElementById('summary-mode');
-        if (modeEl) modeEl.innerText = mode === 'segmentation' ? 'Segmentation (Polígonos)' : 'Detection (Bounding Boxes)';
+        if (modeEl) {
+            if (mode === 'segmentation') {
+                modeEl.innerText = 'Segmentation (Polígonos)';
+            } else if (mode === 'detection') {
+                modeEl.innerText = 'Detection (Bounding Boxes)';
+            } else {
+                modeEl.innerText = 'Não selecionado';
+            }
+        }
 
         // Épocas, Batch, Imgsz, Dispositivo
         const epochsEl = document.getElementById('summary-epochs');
-        if (epochsEl) epochsEl.innerText = fd.get('epochs') || '100';
+        if (epochsEl) epochsEl.innerText = fd.get('epochs') || '1000';
 
         const batchEl = document.getElementById('summary-batch');
         if (batchEl) batchEl.innerText = fd.get('batch') || '16';

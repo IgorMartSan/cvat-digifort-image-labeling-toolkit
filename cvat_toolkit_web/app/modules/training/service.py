@@ -42,17 +42,27 @@ def analyze_dataset_service(project_id: int, task_ids: List[int]) -> Dict[str, A
         annotated_frames_segmentation = 0
 
         for task in valid_tasks:
-            annotations = task.get_annotations()
-            task_shapes = shapes_from(annotations)
-            all_shapes.extend(task_shapes)
             meta = task.get_meta()
             size = getattr(meta, "size", 0)
+            deleted_frames = set(getattr(meta, "deleted_frames", []) or [])
             if isinstance(meta, dict):
                 size = meta.get("size", 0)
-            total_images += int(size)
+                deleted_frames = set(meta.get("deleted_frames", []) or [])
+
+            active_images = max(0, int(size) - len(deleted_frames))
+            total_images += active_images
+
+            annotations = task.get_annotations()
+            task_shapes = shapes_from(annotations)
+            # Ignora anotações de frames deletados no CVAT
+            valid_task_shapes = [
+                s for s in task_shapes
+                if int(getattr(s, "frame", 0) if hasattr(s, "frame") else s.get("frame", 0)) not in deleted_frames
+            ]
+            all_shapes.extend(valid_task_shapes)
 
             frame_types: Dict[int, set] = {}
-            for shape in task_shapes:
+            for shape in valid_task_shapes:
                 frame = int(getattr(shape, "frame", 0) if hasattr(shape, "frame") else shape.get("frame", 0))
                 stype = str(getattr(shape, "type", "") if hasattr(shape, "type") else shape.get("type", "")).lower()
                 frame_types.setdefault(frame, set()).add(stype)

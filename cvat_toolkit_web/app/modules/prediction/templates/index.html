@@ -432,6 +432,25 @@
 
         const confidence = parseFloat(document.getElementById('confidence-range').value || '0.50');
         const overwriteAuto = document.getElementById('overwrite_auto') ? document.getElementById('overwrite_auto').checked : false;
+        const postStageEl = document.getElementById('post_stage');
+        const postStage = postStageEl ? postStageEl.value : 'validation';
+
+        const maxInstancesSelect = document.getElementById('max_instances_select');
+        let maxInstances = 0;
+        if (maxInstancesSelect) {
+            if (maxInstancesSelect.value === 'custom') {
+                const customVal = parseInt(document.getElementById('custom_max_instances').value);
+                maxInstances = (!isNaN(customVal) && customVal > 0) ? customVal : 1;
+            } else {
+                maxInstances = parseInt(maxInstancesSelect.value) || 0;
+            }
+        }
+
+        const instanceLimitModeEl = document.getElementById('instance_limit_mode');
+        const instanceLimitMode = instanceLimitModeEl ? instanceLimitModeEl.value : 'total';
+
+        const iouEl = document.getElementById('iou_threshold');
+        const iouThreshold = iouEl ? parseFloat(iouEl.value) : 0.45;
 
         const payload = {
             model_checkpoint: modelId,
@@ -439,7 +458,11 @@
             task_ids: taskIds,
             class_map: classMap,
             confidence: confidence,
-            overwrite_auto: overwriteAuto
+            overwrite_auto: overwriteAuto,
+            post_stage: postStage,
+            max_instances_per_frame: maxInstances,
+            instance_limit_mode: instanceLimitMode,
+            iou_threshold: iouThreshold
         };
 
         const btn = document.getElementById('start-pred-btn');

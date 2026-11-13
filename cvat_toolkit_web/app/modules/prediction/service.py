@@ -96,7 +96,11 @@ def execute_prediction_job_sync(job: Any, queue_mgr: Any) -> None:
 
     sse_manager.clear_history("prediction")
     queue_mgr.update_job_progress(job.id, 5.0, "Carregando modelo e conectando ao CVAT...")
-    queue_mgr.append_log(job.id, f"🎯 Iniciando auto-anotação (Modelo: {Path(req.model_checkpoint).name})...")
+    limit_msg = ""
+    if getattr(req, "max_instances_per_frame", 0) > 0:
+        crit_str = "por classe" if getattr(req, "instance_limit_mode", "total") == "per_class" else "total/foto"
+        limit_msg = f" • Limite: máx {req.max_instances_per_frame} ({crit_str})"
+    queue_mgr.append_log(job.id, f"🎯 Iniciando auto-anotação (Modelo: {Path(req.model_checkpoint).name}{limit_msg})...")
 
     ckpt_path = Path(req.model_checkpoint)
     if not ckpt_path.is_file():
@@ -170,7 +174,46 @@ def execute_prediction_job_sync(job: Any, queue_mgr: Any) -> None:
                     threshold=req.confidence,
                     overwrite_auto=req.overwrite_auto,
                     progress_callback=on_progress,
+                    max_instances_per_frame=getattr(req, "max_instances_per_frame", 0),
+                    instance_limit_mode=getattr(req, "instance_limit_mode", "total"),
+                    iou_threshold=getattr(req, "iou_threshold", 0.45),
                 )
+
+                # Atualiza o estágio do Job no CVAT para 'validation' (ou configurado)
+                try:
+                    from cvat_sdk import models as cvat_models
+                    target_stage = getattr(req, "post_stage", "validation")
+                    if target_stage == "validation":
+                        stage_req = cvat_models.PatchedJobWriteRequest(
+                            stage=cvat_models.JobStage("validation"),
+                            state=cvat_models.OperationStatus("new"),
+                        )
+                        label_stage = "validation (pronta para validação humana)"
+                    elif target_stage == "completed":
+                        stage_req = cvat_models.PatchedJobWriteRequest(
+                            stage=cvat_models.JobStage("annotation"),
+                            state=cvat_models.OperationStatus("completed"),
+                        )
+                        label_stage = "completed (concluído)"
+                    else:
+                        stage_req = cvat_models.PatchedJobWriteRequest(
+                            stage=cvat_models.JobStage("annotation"),
+                            state=cvat_models.OperationStatus("in progress"),
+                        )
+                        label_stage = "annotation (em andamento)"
+
+                    for j in task.get_jobs():
+                        j.update(stage_req)
+
+                    queue_mgr.append_log(
+                        job.id,
+                        f"🏷️ Tarefa #{task.id} atualizada no CVAT: status alterado para '{label_stage}'.",
+                    )
+                except Exception as update_exc:
+                    queue_mgr.append_log(
+                        job.id,
+                        f"⚠️ Aviso: Não foi possível alterar o estágio da Tarefa #{task.id} no CVAT: {update_exc}",
+                    )
 
                 for k in total_accum:
                     total_accum[k] += counts.get(k, 0)

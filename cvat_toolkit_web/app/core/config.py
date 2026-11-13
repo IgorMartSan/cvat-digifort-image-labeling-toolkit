@@ -76,7 +76,7 @@ class Settings:
             username=os.getenv("CVAT_USERNAME", ""),
             password=os.getenv("CVAT_PASSWORD", ""),
             token=os.getenv("CVAT_TOKEN", ""),
-            epochs=int(os.getenv("YOLO_EPOCHS", "100")),
+            epochs=int(os.getenv("YOLO_EPOCHS", "1000")),
             batch=int(os.getenv("YOLO_BATCH", "16")),
             image_size=int(os.getenv("YOLO_IMAGE_SIZE", "640")),
             device=os.getenv("YOLO_DEVICE", "auto"),

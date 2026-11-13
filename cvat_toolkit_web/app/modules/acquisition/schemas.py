@@ -28,6 +28,7 @@ class CreateWorkerRequest(BaseModel):
     cvat_project_id: Optional[int] = Field(None, description="ID do Projeto CVAT de destino")
     cvat_project_name: Optional[str] = Field("", description="Nome do Projeto CVAT")
     cvat_organization: Optional[str] = Field("", description="Slug da Organização no CVAT")
+    task_prefix: Optional[str] = Field("", description="Nome inicial / prefixo de cada task criada no CVAT")
     interval_seconds: float = Field(600.0, description="Intervalo entre capturas em segundos")
     images_per_task: int = Field(200, description="Quantidade de imagens por task no CVAT")
     auto_remove: bool = Field(True, description="Remover imagens locais após confirmação de upload no CVAT")

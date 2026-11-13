@@ -101,9 +101,15 @@ def predict_task(
     threshold: float,
     overwrite_auto: bool = False,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    max_instances_per_frame: int = 0,
+    instance_limit_mode: str = "total",
+    iou_threshold: float = 0.45,
 ) -> Dict[str, int]:
     meta = task.get_meta()
     frame_count = int(_value(meta, "size", 0))
+    deleted_frames = set(_value(meta, "deleted_frames", []) or [])
+    active_frames = [f for f in range(frame_count) if f not in deleted_frames]
+    total_active = len(active_frames)
     protected_frames, automatic_frames, has_tracks = existing_annotations(task)
 
     if has_tracks:
@@ -113,19 +119,19 @@ def predict_task(
                 "task_id": int(task.id),
                 "reason": "Tarefa possui tracks interpolados e foi ignorada por segurança.",
             })
-        return {"processed": 0, "objects": 0, "sent": 0, "failed": 0, "skipped": frame_count}
+        return {"processed": 0, "objects": 0, "sent": 0, "failed": 0, "skipped": total_active}
 
     totals = {"processed": 0, "objects": 0, "sent": 0, "failed": 0, "skipped": 0}
 
-    for frame in range(frame_count):
+    for idx, frame in enumerate(active_frames):
         if frame in protected_frames or (frame in automatic_frames and not overwrite_auto):
             totals["skipped"] += 1
-            if progress_callback and frame % 10 == 0:
+            if progress_callback and idx % 10 == 0:
                 progress_callback({
                     "type": "frame",
                     "task_id": int(task.id),
-                    "frame": frame + 1,
-                    "total_frames": frame_count,
+                    "frame": idx + 1,
+                    "total_frames": total_active,
                     "totals": totals,
                 })
             continue
@@ -133,9 +139,11 @@ def predict_task(
         try:
             raw = get_cached_frame_bytes(task, frame)
             image = Image.open(io.BytesIO(raw)).convert("RGB")
-            results = model.predict(source=image, conf=threshold, verbose=False)
+            predict_kwargs = {"source": image, "conf": threshold, "verbose": False}
+            if iou_threshold is not None and iou_threshold > 0:
+                predict_kwargs["iou"] = iou_threshold
+            results = model.predict(**predict_kwargs)
             shapes = []
-            detected = 0
 
             for result in results:
                 if result.boxes is None:
@@ -172,8 +180,25 @@ def predict_task(
                             attributes=[],
                         )
                     )
-                    detected += 1
 
+            # Ordena as demarcações por pontuação de confiança decrescente (mais certas primeiro)
+            shapes.sort(key=lambda s: getattr(s, "score", 0.0) or 0.0, reverse=True)
+
+            # Aplica limitação de instâncias se configurado (> 0)
+            if max_instances_per_frame and max_instances_per_frame > 0:
+                if instance_limit_mode == "per_class":
+                    filtered_shapes = []
+                    counts_per_label: Dict[int, int] = {}
+                    for s in shapes:
+                        lid = getattr(s, "label_id", None)
+                        if counts_per_label.get(lid, 0) < max_instances_per_frame:
+                            filtered_shapes.append(s)
+                            counts_per_label[lid] = counts_per_label.get(lid, 0) + 1
+                    shapes = filtered_shapes
+                else:
+                    shapes = shapes[:max_instances_per_frame]
+
+            detected = len(shapes)
             totals["processed"] += 1
             totals["objects"] += detected
 

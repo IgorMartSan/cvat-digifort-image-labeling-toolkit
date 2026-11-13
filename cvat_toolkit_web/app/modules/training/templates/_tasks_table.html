@@ -29,7 +29,7 @@
                             </th>
                             <th style="width: 85px;">ID</th>
                             <th>Nome da Tarefa</th>
-                            <th style="width: 150px;">Estado no CVAT</th>
+                            <th style="width: 190px;">Estágio / Status no CVAT</th>
                             <th style="width: 120px;">Qtd Imagens</th>
                         </tr>
                     </thead>
@@ -37,18 +37,37 @@
                         {% for task in tasks %}
                         <tr class="task-row" style="cursor: pointer;" onclick="toggleTaskRow(event, {{ task.id }})">
                             <td onclick="event.stopPropagation()">
-                                <input type="checkbox" name="task_ids" value="{{ task.id }}" id="task-cb-{{ task.id }}" data-images="{{ task.images_count }}" data-completed="{{ 'true' if task.completed else 'false' }}" class="form-check-input task-checkbox" {% if task.completed %}checked{% endif %}>
+                                <input type="checkbox" name="task_ids" value="{{ task.id }}" id="task-cb-{{ task.id }}" data-images="{{ task.images_count }}" data-completed="{{ 'true' if task.completed else 'false' }}" data-stage="{{ task.stage }}" class="form-check-input task-checkbox" {% if task.completed %}checked{% endif %}>
                             </td>
                             <td><code>#{{ task.id }}</code></td>
                             <td class="fw-medium">{{ task.name }}</td>
                             <td>
-                                {% if task.completed %}
-                                <span class="badge-clean-success">✓ Concluído</span>
+                                {% if task.completed or task.status == 'completed' or task.state == 'completed' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fw-bold">
+                                    ✓ Concluído
+                                </span>
+                                {% elif task.stage == 'validation' or task.status == 'validation' %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 fw-bold">
+                                    🟡 Pré-Anotado (Validação)
+                                </span>
+                                {% elif task.state == 'in progress' %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 fw-bold">
+                                    🔵 Em Andamento
+                                </span>
                                 {% else %}
-                                <span class="badge-clean-neutral">{{ task.state }}</span>
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1">
+                                    ⚪ {{ task.status_label or task.state or 'Novo' }}
+                                </span>
                                 {% endif %}
                             </td>
-                            <td><span class="fw-semibold">{{ task.images_count }}</span> fotos</td>
+                            <td>
+                                <span class="fw-semibold">{{ task.images_count }}</span> fotos
+                                {% if task.deleted_count and task.deleted_count > 0 %}
+                                <span class="badge bg-secondary-subtle text-muted ms-1" title="{{ task.deleted_count }} foto(s) excluída(s) no CVAT" style="font-size: 0.72rem;">
+                                    -{{ task.deleted_count }} del
+                                </span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

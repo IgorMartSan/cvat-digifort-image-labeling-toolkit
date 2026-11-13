@@ -164,6 +164,7 @@ async def create_worker_endpoint(request: Request):
         start_date = form.get("start_date") or None
         end_date = form.get("end_date") or None
         sync_pipeline = form.get("sync_pipeline") not in {"false", "0", "off"}
+        task_prefix = (form.get("task_prefix") or "").strip()
 
         cam_name = (form.get("camera_name") or "").strip()
         if not cam_name or cam_name == "camera_01":
@@ -188,6 +189,7 @@ async def create_worker_endpoint(request: Request):
             cvat_project_id=int(project_id) if project_id and project_id.isdigit() else None,
             cvat_project_name=form.get("cvat_project_name", ""),
             cvat_organization=form.get("cvat_organization", ""),
+            task_prefix=task_prefix,
             interval_seconds=float(form.get("interval_seconds") or 600.0),
             images_per_task=int(form.get("images_per_task") or 200),
             auto_remove=form.get("auto_remove") in {"true", "1", "on"},
@@ -221,8 +223,8 @@ async def control_worker_endpoint(worker_id: str, action: str = Query(...)):
 
 
 @router.delete("/workers/{worker_id}")
-async def delete_worker_endpoint(worker_id: str, delete_images: bool = Query(False)):
-    """Exclui o worker e opcionalmente remove imagens não enviadas do disco."""
+async def delete_worker_endpoint(worker_id: str, delete_images: bool = Query(True)):
+    """Exclui o worker e remove todos os seus registros e imagens não enviadas do disco."""
     ok = delete_worker_service(worker_id, delete_images=delete_images)
     if not ok:
         raise HTTPException(status_code=404, detail="Worker não encontrado.")

@@ -100,41 +100,127 @@ def list_organizations() -> List[Dict[str, str]]:
             return []
 
 
-def task_is_completed(task: Any) -> Tuple[bool, str]:
+def inspect_task_workflow(task: Any) -> Dict[str, Any]:
     """
-    Verifica se todos os jobs da tarefa estão com estado 'completed'.
+    Analisa os jobs e status da tarefa no CVAT e retorna indicadores estruturados:
+    is_completed, stage, state, status, label amigável e classe de estilo.
     """
     try:
         jobs = list(task.get_jobs())
         if not jobs:
-            return False, "sem jobs"
+            return {
+                "completed": False,
+                "status": "empty",
+                "stage": "annotation",
+                "state": "sem jobs",
+                "label": "Sem Jobs",
+                "badge_class": "badge bg-secondary-subtle text-secondary border",
+            }
+
+        stages = [getattr(getattr(j, "stage", None), "value", str(getattr(j, "stage", ""))) for j in jobs]
         states = [getattr(getattr(j, "state", None), "value", str(getattr(j, "state", ""))) for j in jobs]
-        if all(s == "completed" for s in states):
-            return True, "completed"
-        return False, ", ".join(sorted(set(states)))
-    except Exception:
-        return False, "erro ao ler jobs"
+        raw_status = getattr(getattr(task, "status", None), "value", str(getattr(task, "status", ""))).lower()
+
+        # Se todos os jobs estão 'completed'
+        all_completed = all(s == "completed" for s in states)
+        has_validation = any(s == "validation" for s in stages) or raw_status == "validation"
+        has_in_progress = any(s == "in progress" for s in states)
+
+        if all_completed:
+            return {
+                "completed": True,
+                "status": "completed",
+                "stage": stages[0] if stages else "annotation",
+                "state": "completed",
+                "label": "Validado / Concluído",
+                "badge_class": "badge bg-success-subtle text-success border border-success-subtle",
+            }
+
+        if has_validation:
+            if has_in_progress:
+                return {
+                    "completed": False,
+                    "status": "validation",
+                    "stage": "validation",
+                    "state": "in progress",
+                    "label": "Em Validação",
+                    "badge_class": "badge bg-info-subtle text-info-emphasis border border-info-subtle",
+                }
+            return {
+                "completed": False,
+                "status": "validation",
+                "stage": "validation",
+                "state": "new",
+                "label": "Pré-Anotado (Validação)",
+                "badge_class": "badge bg-warning-subtle text-warning-emphasis border border-warning-subtle",
+            }
+
+        if has_in_progress:
+            return {
+                "completed": False,
+                "status": "annotation",
+                "stage": "annotation",
+                "state": "in progress",
+                "label": "Em Anotação",
+                "badge_class": "badge bg-primary-subtle text-primary border border-primary-subtle",
+            }
+
+        return {
+            "completed": False,
+            "status": "annotation",
+            "stage": "annotation",
+            "state": states[0] if states else "new",
+            "label": "Novo / Sem Anotação",
+            "badge_class": "badge bg-secondary-subtle text-secondary border",
+        }
+    except Exception as exc:
+        return {
+            "completed": False,
+            "status": "unknown",
+            "stage": "unknown",
+            "state": "erro",
+            "label": f"Erro ({exc})",
+            "badge_class": "badge bg-danger-subtle text-danger border",
+        }
+
+
+def task_is_completed(task: Any) -> Tuple[bool, str]:
+    """
+    Verifica se todos os jobs da tarefa estão com estado 'completed'.
+    """
+    info = inspect_task_workflow(task)
+    return info["completed"], info["state"]
 
 
 def get_project_tasks_summary(project_id: int) -> List[Dict[str, Any]]:
     """
-    Retorna as tarefas de um projeto com status dos jobs e contagem de imagens.
+    Retorna as tarefas de um projeto com status dos jobs e contagem de imagens ativas (descontando deletadas).
     """
     with get_cvat_client() as client:
         project = client.projects.retrieve(project_id)
         tasks_data = []
         for task in project.get_tasks():
-            done, state = task_is_completed(task)
+            info = inspect_task_workflow(task)
             meta = task.get_meta()
             size = getattr(meta, "size", 0)
+            deleted_frames = getattr(meta, "deleted_frames", []) or []
             if isinstance(meta, dict):
                 size = meta.get("size", 0)
+                deleted_frames = meta.get("deleted_frames", []) or []
+            deleted_count = len(deleted_frames)
+            active_size = max(0, int(size) - deleted_count)
             tasks_data.append({
                 "id": int(task.id),
                 "name": str(task.name),
-                "completed": done,
-                "state": state,
-                "images_count": int(size),
+                "completed": info["completed"],
+                "status": info["status"],
+                "stage": info["stage"],
+                "state": info["state"],
+                "status_label": info["label"],
+                "badge_class": info["badge_class"],
+                "images_count": active_size,
+                "total_size": int(size),
+                "deleted_count": deleted_count,
             })
         return sorted(tasks_data, key=lambda x: x["id"])
 

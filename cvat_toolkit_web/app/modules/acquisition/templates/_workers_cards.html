@@ -108,6 +108,12 @@
                         <span class="text-muted">Projeto CVAT:</span>
                         <span class="text-dark fw-bold">{{ w.cvat_project_name or ('Projeto ' ~ w.camera_name) }}</span>
                     </div>
+                    {% if w.task_prefix %}
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Prefixo da Task:</span>
+                        <span class="text-primary fw-bold font-monospace">{{ w.task_prefix }}</span>
+                    </div>
+                    {% endif %}
                     <div class="d-flex justify-content-between mb-1">
                         <span class="text-muted">Regra de Lote:</span>
                         <span class="text-dark">Foto a cada {{ w.interval_seconds|int }}s • Task a cada {{ w.images_per_task }} fotos</span>
@@ -201,7 +207,7 @@
                     {% endif %}
                 </div>
 
-                <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 small" onclick="deleteWorker('{{ w.id }}')">
+                <button type="button" class="btn btn-xs btn-outline-danger py-1 px-2 small" onclick="deleteWorker('{{ w.id }}', this)">
                     🗑️ Excluir
                 </button>
             </div>

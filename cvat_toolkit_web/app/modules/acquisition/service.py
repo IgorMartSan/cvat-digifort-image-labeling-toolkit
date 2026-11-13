@@ -100,6 +100,7 @@ def create_worker_service(req: CreateWorkerRequest) -> Dict[str, Any]:
         cvat_project_id=req.cvat_project_id,
         cvat_project_name=req.cvat_project_name or clean_name,
         cvat_organization=req.cvat_organization or "",
+        task_prefix=(req.task_prefix or "").strip(),
         interval_seconds=max(req.interval_seconds, 1.0),
         images_per_task=max(req.images_per_task, 1),
         auto_remove=req.auto_remove,
@@ -142,5 +143,5 @@ def control_worker_service(worker_id: str, action: str) -> bool:
     return False
 
 
-def delete_worker_service(worker_id: str, delete_images: bool = False) -> bool:
+def delete_worker_service(worker_id: str, delete_images: bool = True) -> bool:
     return acquisition_manager.delete_worker(worker_id, delete_images=delete_images)

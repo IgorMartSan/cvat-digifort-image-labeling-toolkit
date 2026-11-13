@@ -22,14 +22,16 @@ def collect_task(task: Any, mode: str, derive_polygons: bool = True, include_emp
             })
     meta = task.get_meta()
     frame_count = int(_value(meta, "size", 0))
+    deleted_frames = set(_value(meta, "deleted_frames", []) or [])
     result = []
     selected_count = 0
-    for frame in range(frame_count):
+    active_frames = [f for f in range(frame_count) if f not in deleted_frames]
+    for frame in active_frames:
         objects = by_frame.get(frame, [])
         if not objects and not include_empty:
             continue
         selected_count += 1
-        if selected_count == 1 or selected_count % 10 == 0 or frame == frame_count - 1:
+        if selected_count == 1 or selected_count % 10 == 0 or (active_frames and frame == active_frames[-1]):
             print(f"Baixando task {task.id}: {selected_count} imagens selecionadas", flush=True)
         result.append({"task_id": int(task.id), "frame": frame, "objects": objects,
                        "image_bytes": get_frame_bytes(task, frame)})

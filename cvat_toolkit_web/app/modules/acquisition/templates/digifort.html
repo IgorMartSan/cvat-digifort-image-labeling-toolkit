@@ -46,6 +46,7 @@
             <input type="hidden" name="ptz_preset" id="form_ptz_preset" value="">
             <input type="hidden" name="cvat_project_name" id="form_cvat_project_name" value="">
             <input type="hidden" name="cvat_organization" id="form_cvat_organization" value="{{ default_org }}">
+            <input type="hidden" name="task_prefix" id="form_task_prefix" value="">
 
             <!-- ============================================================== -->
             <!-- ETAPA 1: Destino no CVAT (Projeto & Organização)               -->
@@ -93,30 +94,57 @@
 
                 <!-- Painel: Projeto Existente -->
                 <div id="panel-existing-project" class="p-3 bg-light rounded border mb-3">
-                    <label for="cvat_project_id" class="form-label small fw-bold text-dark">
-                        Projeto do CVAT (Todas as Organizações):
-                    </label>
-                    <select class="form-select" name="cvat_project_id" id="cvat_project_id" onchange="onExistingProjectSelected()">
-                        <option value="">-- Selecione um projeto do CVAT --</option>
-                        {% if projects %}
-                            {% for group in projects|groupby('organization') %}
-                            <optgroup label="🏢 {{ 'Organização: ' ~ group.grouper if group.grouper else 'Projetos Pessoais' }}">
-                                {% for p in group.list %}
-                                <option value="{{ p.id }}" data-name="{{ p.name }}" data-org="{{ p.organization }}">
-                                    {{ p.name }} (ID #{{ p.id }})
-                                </option>
+                    <div class="mb-3">
+                        <label for="cvat_project_id" class="form-label small fw-bold text-dark">
+                            Projeto do CVAT (Todas as Organizações):
+                        </label>
+                        <select class="form-select" name="cvat_project_id" id="cvat_project_id" onchange="onExistingProjectSelected()">
+                            <option value="">-- Selecione um projeto do CVAT --</option>
+                            {% if projects %}
+                                {% for group in projects|groupby('organization') %}
+                                <optgroup label="🏢 {{ 'Organização: ' ~ group.grouper if group.grouper else 'Projetos Pessoais' }}">
+                                    {% for p in group.list %}
+                                    <option value="{{ p.id }}" data-name="{{ p.name }}" data-org="{{ p.organization }}">
+                                        {{ p.name }} (ID #{{ p.id }})
+                                    </option>
+                                    {% endfor %}
+                                </optgroup>
                                 {% endfor %}
-                            </optgroup>
-                            {% endfor %}
-                        {% else %}
-                            <option value="" disabled>Nenhum projeto encontrado</option>
-                        {% endif %}
-                    </select>
+                            {% else %}
+                                <option value="" disabled>Nenhum projeto encontrado</option>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label for="input_task_prefix" class="form-label small fw-bold text-dark mb-0">
+                                Nome Inicial / Prefixo de Cada Task no CVAT:
+                            </label>
+                            <span class="badge bg-white text-primary border" style="font-size: 0.7rem;">Diferenciar Múltiplos Workers</span>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted">🏷️</span>
+                            <input type="text" class="form-control font-monospace" id="input_task_prefix" placeholder="Ex: VO2C01 ou Câmera 01" oninput="onTaskPrefixInput()">
+                        </div>
+                        <div class="d-flex align-items-center gap-1 mt-1 flex-wrap" id="task-prefix-suggestions">
+                            <span class="text-muted small" style="font-size: 0.72rem;">Sugestão rápida:</span>
+                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.72rem;" onclick="applyTaskPrefixSuggestion('camera')">
+                                📷 Usar Câmera (<span id="prefix-suggest-cam">camera_01</span>)
+                            </button>
+                            <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2" style="font-size: 0.72rem;" onclick="applyTaskPrefixSuggestion('project')">
+                                📁 Usar Projeto (<span id="prefix-suggest-proj">-</span>)
+                            </button>
+                        </div>
+                        <div class="form-text small text-muted mt-1">
+                            Nome colocado no início de cada task criada no CVAT (ex: <code>&lt;Nome Inicial&gt; | 2026-11-13...</code>). Essencial para rodar múltiplos workers no mesmo projeto e identificar facilmente de qual câmera vieram as fotos.
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Painel: Criar Novo Projeto -->
                 <div id="panel-new-project" class="p-3 bg-light rounded border mb-3" style="display: none;">
-                    <div class="row g-2">
+                    <div class="row g-2 mb-3">
                         <div class="col-md-7">
                             <label for="new_project_name" class="form-label small fw-bold text-dark">Nome do Novo Projeto:</label>
                             <input type="text" class="form-control" name="new_project_name" id="new_project_name" placeholder="Ex: VO2C01" oninput="onNewProjectInput()">
@@ -131,6 +159,21 @@
                                 </option>
                                 {% endfor %}
                             </select>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label for="new_task_prefix" class="form-label small fw-bold text-dark mb-0">
+                                Nome Inicial / Prefixo de Cada Task no CVAT (Opcional):
+                            </label>
+                            <span class="badge bg-white text-muted border" style="font-size: 0.7rem;">Opcional</span>
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted">🏷️</span>
+                            <input type="text" class="form-control font-monospace" id="new_task_prefix" placeholder="Padrão: mesmo nome do projeto" oninput="onTaskPrefixInput()">
+                        </div>
+                        <div class="form-text small text-muted mt-1">
+                            Se preenchido, define o nome inicial das tasks criadas no CVAT. Se vazio, utiliza o nome do projeto.
                         </div>
                     </div>
                 </div>
@@ -528,7 +571,7 @@
                                 VO2C01 | 2026-11-13 08:00:00 a 2026-11-13 14:30:15
                             </div>
                             <span class="text-muted small mt-1 d-block" style="font-size: 0.75rem;">
-                                Formato: <code>{Projeto} | {Data Inicial} a {Data Final}</code>
+                                Formato: <code>{Nome Inicial da Task} | {Data Inicial} a {Data Final}</code>
                             </span>
                         </div>
                     </div>
@@ -558,6 +601,10 @@
                         <div class="col-md-6">
                             <span class="text-muted d-block">Organização CVAT:</span>
                             <span class="fw-bold text-dark fs-6" id="summary-org">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="text-muted d-block">Nome Inicial / Prefixo da Task:</span>
+                            <span class="fw-bold text-primary font-monospace" id="summary-task-prefix">-</span>
                         </div>
                         <div class="col-md-6">
                             <span class="text-muted d-block">Regras de Lote:</span>
@@ -742,6 +789,33 @@
         if (formProjName) formProjName.value = nameVal;
         if (formOrg) formOrg.value = orgVal;
 
+        updateSummary();
+    }
+
+    function onTaskPrefixInput() {
+        updateSummary();
+    }
+
+    function applyTaskPrefixSuggestion(type) {
+        const isExistingMode = document.getElementById('proj_mode_existing')?.checked;
+        const targetInput = isExistingMode
+            ? document.getElementById('input_task_prefix')
+            : document.getElementById('new_task_prefix');
+        if (!targetInput) return;
+
+        if (type === 'camera') {
+            targetInput.value = resolveAutoCameraName();
+        } else if (type === 'project') {
+            const projSelect = document.getElementById('cvat_project_id');
+            if (projSelect && projSelect.value) {
+                const opt = projSelect.options[projSelect.selectedIndex];
+                const pName = opt.getAttribute('data-name') || opt.text.split('(')[0].trim();
+                targetInput.value = pName;
+            } else {
+                const newProj = (document.getElementById('new_project_name')?.value || '').trim();
+                if (newProj) targetInput.value = newProj;
+            }
+        }
         updateSummary();
     }
 
@@ -1298,6 +1372,10 @@
         const hiddenCam = document.getElementById('camera_name');
         if (hiddenCam) hiddenCam.value = autoCam;
 
+        // Atualiza textos das sugestões rápidas
+        const suggestCamEl = document.getElementById('prefix-suggest-cam');
+        if (suggestCamEl) suggestCamEl.innerText = autoCam;
+
         // Resolve nome do projeto e organização
         let projName = autoCam;
         let orgName = document.getElementById('form_cvat_organization')?.value || 'Pessoal';
@@ -1309,7 +1387,7 @@
                 const org = opt.getAttribute('data-org');
                 orgName = org ? org : 'Pessoal';
             } else {
-                projName = '(Novo projeto no CVAT)';
+                projName = '(Selecione um projeto)';
             }
         } else {
             const customNew = (newProjInput?.value || '').trim();
@@ -1320,6 +1398,29 @@
             }
             const selOrg = newOrgSelect?.value;
             orgName = selOrg ? selOrg : 'Pessoal';
+        }
+
+        const suggestProjEl = document.getElementById('prefix-suggest-proj');
+        if (suggestProjEl) suggestProjEl.innerText = (projName && projName !== '(Selecione um projeto)') ? projName : '-';
+
+        // Atualiza placeholder do input de prefixo
+        const inputTaskPrefix = document.getElementById('input_task_prefix');
+        if (inputTaskPrefix) {
+            inputTaskPrefix.placeholder = `Ex: ${autoCam} ou Câmera Norte`;
+        }
+
+        // Obtém o prefixo customizado das tasks
+        const customPrefix = isExistingMode
+            ? (document.getElementById('input_task_prefix')?.value || '').trim()
+            : (document.getElementById('new_task_prefix')?.value || '').trim();
+
+        const formTaskPrefix = document.getElementById('form_task_prefix');
+        if (formTaskPrefix) formTaskPrefix.value = customPrefix;
+
+        // Define o prefixo efetivo para preview e nomenclatura
+        let effectiveTaskPrefix = customPrefix;
+        if (!effectiveTaskPrefix) {
+            effectiveTaskPrefix = (isExistingMode && projName !== '(Selecione um projeto)') ? projName : autoCam;
         }
 
         // Modo PTZ
@@ -1379,8 +1480,8 @@
             endDateFormatted = formatDt(estEnd);
         }
 
-        // Preview da Task no CVAT: {Projeto} | {Data Inicial} a {Data Final com HH:MM:SS}
-        const taskPreview = `${projName} | ${startDateFormatted} a ${endDateFormatted}`;
+        // Preview da Task no CVAT: {Nome Inicial} | {Data Inicial} a {Data Final com HH:MM:SS}
+        const taskPreview = `${effectiveTaskPrefix} | ${startDateFormatted} a ${endDateFormatted}`;
         const previewEl = document.getElementById('summary-task-title-preview');
         if (previewEl) previewEl.innerText = taskPreview;
 
@@ -1403,6 +1504,7 @@
         // Atualiza campos de texto do resumo
         const elProj = document.getElementById('summary-project');
         const elOrg = document.getElementById('summary-org');
+        const elTaskPrefix = document.getElementById('summary-task-prefix');
         const elCam = document.getElementById('summary-camera');
         const elHost = document.getElementById('summary-host');
         const elRules = document.getElementById('summary-rules');
@@ -1411,6 +1513,9 @@
 
         if (elProj) elProj.innerText = projName;
         if (elOrg) elOrg.innerText = orgName;
+        if (elTaskPrefix) {
+            elTaskPrefix.innerText = customPrefix ? customPrefix : `${effectiveTaskPrefix} (padrão)`;
+        }
         if (elCam) elCam.innerText = autoCam;
         if (elHost) elHost.innerText = maskUrlCredentials(url);
         if (elRules) {
@@ -1431,6 +1536,13 @@
         const autoCam = resolveAutoCameraName();
         const hiddenCam = document.getElementById('camera_name');
         if (hiddenCam) hiddenCam.value = autoCam;
+
+        // Sincroniza prefixo customizado das tasks
+        const customPrefix = isExistingMode
+            ? (document.getElementById('input_task_prefix')?.value || '').trim()
+            : (document.getElementById('new_task_prefix')?.value || '').trim();
+        const formTaskPrefix = document.getElementById('form_task_prefix');
+        if (formTaskPrefix) formTaskPrefix.value = customPrefix;
 
         if (isExistingMode && (!projSelect || !projSelect.value)) {
             goToStep(1);

@@ -1,4 +1,6 @@
+import shutil
 import unittest
+from datetime import datetime
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -356,6 +358,163 @@ class TestAcquisitionModule(unittest.TestCase):
         # Cleanup
         self.client.delete(f"/acquisition/workers/{w_id}", params={"delete_images": True})
 
+    def test_delete_worker_removes_folder_and_checkpoint(self):
+        """Valida que excluir o worker remove o worker, .history.json e a pasta do disco."""
+        payload = {
+            "camera_name": "CAM_DELETE_CLEANUP_TEST",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_DELETE_CLEANUP_TEST",
+            "capture_mode": "history",
+            "start_date": "2026-11-01T10:00:00",
+            "auto_start": False,
+        }
+        create_resp = self.client.post("/acquisition/workers", json=payload)
+        self.assertEqual(create_resp.status_code, 200)
+        w_id = create_resp.json()["id"]
+
+        worker = acquisition_manager.get_worker(w_id)
+        self.assertIsNotNone(worker)
+        # Salva checkpoint simulado
+        worker.save_checkpoint()
+        self.assertTrue(worker.history_file.is_file())
+        self.assertTrue(worker.camera_folder.is_dir())
+
+        # Exclui worker via API
+        del_resp = self.client.delete(f"/acquisition/workers/{w_id}")
+        self.assertEqual(del_resp.status_code, 200)
+
+        # Worker não deve mais existir na memória nem no storage
+        self.assertIsNone(acquisition_manager.get_worker(w_id))
+        self.assertFalse(worker.history_file.is_file())
+        self.assertFalse(worker.camera_folder.is_dir())
+
+    def test_new_worker_with_different_start_date_resets_history(self):
+        """Valida que criar um novo worker com outra data de início não herda o checkpoint antigo."""
+        from datetime import datetime
+        from app.core.acquisition_manager import ActiveWorker, AcquisitionWorkerConfig
+
+        cam_name = "CAM_RESET_DATE_TEST"
+        cfg1 = AcquisitionWorkerConfig(
+            id="worker_old_1",
+            camera_name=cam_name,
+            capture_mode="history",
+            start_date="2026-11-01T08:00:00",
+            interval_seconds=60.0,
+            auto_start=False,
+        )
+        w1 = ActiveWorker(cfg1)
+        w1.history_cursor = datetime(2026, 11, 4, 12, 0, 0).timestamp()
+        w1.captured_count = 500
+        w1.tasks_created = 5
+        w1.save_checkpoint()
+        self.assertTrue(w1.history_file.is_file())
+
+        # Novo worker com data de início diferente (06/11 em vez de 01/11)
+        cfg2 = AcquisitionWorkerConfig(
+            id="worker_new_2",
+            camera_name=cam_name,
+            capture_mode="history",
+            start_date="2026-11-06T08:55:00",
+            interval_seconds=60.0,
+            auto_start=False,
+        )
+        w2 = ActiveWorker(cfg2)
+        # Não deve carregar o checkpoint do worker antigo
+        self.assertFalse(w2.load_checkpoint())
+        self.assertIsNone(w2.history_cursor)
+        self.assertEqual(w2.captured_count, 0)
+        self.assertEqual(w2.tasks_created, 0)
+
+        # Cleanup
+        if w1.camera_folder.is_dir():
+            shutil.rmtree(w1.camera_folder, ignore_errors=True)
+
+    def test_new_worker_with_same_start_date_starts_fresh_and_does_not_inherit_history(self):
+        """Valida que criar um novo worker com a MESMA data de início não herda o checkpoint nem fotos do worker anterior."""
+        same_date = "2026-11-06T08:55:00"
+        cam_name = "CAM_SAME_DATE_FRESH_TEST"
+
+        # 1. Cria primeiro worker
+        p1 = {
+            "camera_name": cam_name,
+            "direct_url": f"http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera={cam_name}",
+            "capture_mode": "history",
+            "start_date": same_date,
+            "interval_seconds": 60,
+            "auto_start": False,
+        }
+        resp1 = self.client.post("/acquisition/workers", json=p1)
+        self.assertEqual(resp1.status_code, 200)
+        w1_id = resp1.json()["id"]
+
+        w1 = acquisition_manager.get_worker(w1_id)
+        self.assertIsNotNone(w1)
+        # Simula progresso do worker 1 (avançou 3 dias e tirou 450 fotos)
+        advanced_dt = datetime(2026, 11, 9, 14, 0, 0)
+        w1.history_cursor = advanced_dt.timestamp()
+        w1.captured_count = 450
+        w1.tasks_created = 4
+        w1.save_checkpoint(last_filename="2026-11-09_14-00-00.jpg", last_file_dt=advanced_dt)
+        # Cria arquivos fictícios na pasta da câmera
+        dummy_img = w1.camera_folder / "2026-11-09_14-00-00.jpg"
+        dummy_img.write_bytes(b"dummy")
+
+        # 2. Cria segundo worker para a mesma câmera com a EXATA MESMA data de início
+        p2 = {
+            "camera_name": cam_name,
+            "direct_url": f"http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera={cam_name}",
+            "capture_mode": "history",
+            "start_date": same_date,
+            "interval_seconds": 60,
+            "auto_start": False,
+        }
+        resp2 = self.client.post("/acquisition/workers", json=p2)
+        self.assertEqual(resp2.status_code, 200)
+        w2_id = resp2.json()["id"]
+
+        w2 = acquisition_manager.get_worker(w2_id)
+        self.assertIsNotNone(w2)
+        # O novo worker deve começar do absoluto zero:
+        expected_start_ts = datetime.fromisoformat(same_date).timestamp()
+        self.assertEqual(w2.history_cursor, expected_start_ts)
+        self.assertEqual(w2.captured_count, 0)
+        self.assertEqual(w2.tasks_created, 0)
+        self.assertEqual(w2.current_recording_time, "06/11/2026 08:55:00")
+        # As imagens antigas do worker anterior foram apagadas
+        self.assertFalse(dummy_img.exists())
+
+        # Cleanup
+        self.client.delete(f"/acquisition/workers/{w2_id}")
+
+    def test_create_worker_replaces_existing_camera_worker(self):
+        """Valida que criar um novo worker para a mesma câmera substitui o worker anterior."""
+        p1 = {
+            "camera_name": "CAM_REPLACE_TEST",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_REPLACE_TEST",
+            "interval_seconds": 60,
+            "auto_start": False,
+        }
+        resp1 = self.client.post("/acquisition/workers", json=p1)
+        self.assertEqual(resp1.status_code, 200)
+        w1_id = resp1.json()["id"]
+
+        p2 = {
+            "camera_name": "CAM_REPLACE_TEST",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_REPLACE_TEST",
+            "interval_seconds": 300,
+            "auto_start": False,
+        }
+        resp2 = self.client.post("/acquisition/workers", json=p2)
+        self.assertEqual(resp2.status_code, 200)
+        w2_id = resp2.json()["id"]
+
+        self.assertNotEqual(w1_id, w2_id)
+        # O worker 1 deve ter sido substituído e removido
+        self.assertIsNone(acquisition_manager.get_worker(w1_id))
+        self.assertIsNotNone(acquisition_manager.get_worker(w2_id))
+
+        # Cleanup
+        self.client.delete(f"/acquisition/workers/{w2_id}")
+
     def test_format_position_tag(self):
         # 1. Preset com nome
         t1 = {
@@ -390,6 +549,87 @@ class TestAcquisitionModule(unittest.TestCase):
         t4 = {"available": False}
         self.assertEqual(format_position_tag(t4), "")
         self.assertEqual(format_position_tag(None), "")
+
+    def test_task_prefix_input_rendered_in_wizard_page(self):
+        """Valida que a página do wizard contém os campos de prefixo/nome inicial da task no CVAT."""
+        resp = self.client.get("/acquisition/digifort")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.text
+        self.assertIn("panel-existing-project", html)
+        self.assertIn('id="input_task_prefix"', html)
+        self.assertIn('id="form_task_prefix"', html)
+        self.assertIn("Nome Inicial / Prefixo de Cada Task no CVAT", html)
+        self.assertIn("Diferenciar Múltiplos Workers", html)
+
+    def test_create_worker_with_task_prefix(self):
+        """Valida a criação de um worker com task_prefix customizado e sua exibição nos cards."""
+        payload = {
+            "camera_name": "CAM_PREFIX_TEST",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_PREFIX_TEST",
+            "cvat_project_name": "ARGUS_DEFEITOS",
+            "task_prefix": "CAM_PREFIX_TEST_SETOR_A",
+            "interval_seconds": 60,
+            "images_per_task": 50,
+            "auto_start": False,
+        }
+        resp = self.client.post("/acquisition/workers", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        w_id = data["id"]
+        self.assertEqual(data.get("task_prefix"), "CAM_PREFIX_TEST_SETOR_A")
+
+        # Verifica renderização nos cards
+        cards_resp = self.client.get("/acquisition/workers/cards")
+        self.assertEqual(cards_resp.status_code, 200)
+        self.assertIn("CAM_PREFIX_TEST_SETOR_A", cards_resp.text)
+        self.assertIn("Prefixo da Task:", cards_resp.text)
+
+        # Cleanup
+        self.client.delete(f"/acquisition/workers/{w_id}")
+
+    def test_two_workers_same_project_different_task_prefixes(self):
+        """Valida que dois workers coletando no mesmo projeto podem ter câmeras e prefixos de tasks diferentes sem colidir."""
+        p1 = {
+            "camera_name": "CAM_WORKER_1",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_WORKER_1",
+            "cvat_project_name": "ARGUS_DEFEITOS",
+            "cvat_project_id": 2,
+            "task_prefix": "CAM1_NORTE",
+            "interval_seconds": 60,
+            "images_per_task": 50,
+            "auto_start": False,
+        }
+        r1 = self.client.post("/acquisition/workers", json=p1)
+        self.assertEqual(r1.status_code, 200)
+        w1_id = r1.json()["id"]
+
+        p2 = {
+            "camera_name": "CAM_WORKER_2",
+            "direct_url": "http://10.247.72.55:8601/Interface/Cameras/GetSnapshot?Camera=CAM_WORKER_2",
+            "cvat_project_name": "ARGUS_DEFEITOS",
+            "cvat_project_id": 2,
+            "task_prefix": "CAM2_SUL",
+            "interval_seconds": 60,
+            "images_per_task": 50,
+            "auto_start": False,
+        }
+        r2 = self.client.post("/acquisition/workers", json=p2)
+        self.assertEqual(r2.status_code, 200)
+        w2_id = r2.json()["id"]
+
+        self.assertNotEqual(w1_id, w2_id)
+        w1 = acquisition_manager.get_worker(w1_id)
+        w2 = acquisition_manager.get_worker(w2_id)
+        self.assertIsNotNone(w1)
+        self.assertIsNotNone(w2)
+        self.assertEqual(w1.config.task_prefix, "CAM1_NORTE")
+        self.assertEqual(w2.config.task_prefix, "CAM2_SUL")
+        self.assertEqual(w1.config.cvat_project_name, "ARGUS_DEFEITOS")
+        self.assertEqual(w2.config.cvat_project_name, "ARGUS_DEFEITOS")
+
+        # Cleanup
+        self.client.delete(f"/acquisition/workers/{w1_id}")
+        self.client.delete(f"/acquisition/workers/{w2_id}")
 
 
 if __name__ == "__main__":

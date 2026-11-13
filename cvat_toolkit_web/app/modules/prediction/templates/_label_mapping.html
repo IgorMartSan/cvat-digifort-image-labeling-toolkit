@@ -50,11 +50,12 @@
             </table>
         </div>
 
-        <!-- Parâmetros de Inferência -->
-        <div class="row g-3 align-items-center mb-4 p-3 bg-light rounded border">
+        <!-- Parâmetros de Inferência, Limite de Instâncias e Estágio no CVAT -->
+        <div class="row g-3 mb-4 p-3 bg-light rounded border">
+            <!-- 1. Limiar de Confiança -->
             <div class="col-md-6">
                 <label class="form-label small fw-semibold d-flex justify-content-between mb-1">
-                    <span>Limiar de Confiança (Confidence Threshold):</span>
+                    <span>Limiar de Confiança (Confidence):</span>
                     <span class="badge bg-primary font-monospace" id="conf-val-badge">0.50</span>
                 </label>
                 <input type="range" class="form-range" name="confidence" id="confidence-range" min="0.05" max="0.95" step="0.05" value="0.50" oninput="document.getElementById('conf-val-badge').innerText = parseFloat(this.value).toFixed(2)">
@@ -65,18 +66,117 @@
                 </div>
             </div>
 
+            <!-- 2. Limite de Instâncias/Demarcações por Imagem -->
             <div class="col-md-6">
-                <div class="form-check form-switch mt-1">
-                    <input class="form-check-input" type="checkbox" role="switch" id="overwrite_auto" name="overwrite_auto">
-                    <label class="form-check-label small fw-medium" for="overwrite_auto">
-                        Substituir anotações automáticas anteriores
-                    </label>
+                <label class="form-label small fw-semibold mb-1 d-flex justify-content-between">
+                    <span>Limite de Demarcações por Foto:</span>
+                    <span class="badge bg-secondary-subtle text-secondary border font-monospace" id="limit-badge-info">Sem limite</span>
+                </label>
+                <div class="input-group input-group-sm">
+                    <select class="form-select" name="max_instances_select" id="max_instances_select" onchange="handleMaxInstancesChange(this.value)">
+                        <option value="0" selected>♾️ Sem limite (Anota todas as detecções)</option>
+                        <option value="1">🎯 Apenas 1 (A demarcação de maior confiança)</option>
+                        <option value="2">✌️ No máximo 2 demarcações por imagem</option>
+                        <option value="3">3️⃣ No máximo 3 demarcações por imagem</option>
+                        <option value="5">5️⃣ No máximo 5 demarcações por imagem</option>
+                        <option value="custom">✏️ Personalizado (Definir manual)...</option>
+                    </select>
+                    <input type="number" class="form-control d-none" id="custom_max_instances" min="1" max="100" placeholder="Qtd" style="max-width: 80px;" oninput="updateLimitBadge(this.value)">
                 </div>
-                <div class="text-muted mt-1" style="font-size: 0.78rem;">
-                    🛡️ Anotações manuais criadas por rotuladores humanos são sempre preservadas e protegidas.
+                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                    Mantém apenas as detecções com maior pontuação de confiança na imagem.
+                </div>
+            </div>
+
+            <!-- 3. Critério do Limite (Total na Imagem ou Por Classe) -->
+            <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">
+                    Critério de Contagem do Limite:
+                </label>
+                <select class="form-select form-select-sm" name="instance_limit_mode" id="instance_limit_mode">
+                    <option value="total" selected>🖼️ Total no Quadro (Ex: no máximo 1 ou 2 caixas na imagem inteira)</option>
+                    <option value="per_class">🏷️ Por Classe (Ex: no máximo 1 ou 2 de cada classe mapeada)</option>
+                </select>
+                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                    Escolha se o limite é geral na foto inteira ou individual por cada classe.
+                </div>
+            </div>
+
+            <!-- 4. Estágio no CVAT pós-anotação -->
+            <div class="col-md-6">
+                <label class="form-label small fw-semibold mb-1">
+                    Estágio no CVAT pós-anotação:
+                </label>
+                <select class="form-select form-select-sm" name="post_stage" id="post_stage">
+                    <option value="validation" selected>🟡 Validação (Recomendado - Marca para revisão humana)</option>
+                    <option value="annotation">⚪ Manter em Anotação</option>
+                    <option value="completed">🟢 Concluído direto (Pula validação)</option>
+                </select>
+                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                    Define automaticamente o status das tarefas no CVAT para você validar no sistema.
+                </div>
+            </div>
+
+            <!-- 5. Opções Avançadas: Substituir Anotações Anteriores e NMS IoU -->
+            <div class="col-12 border-top pt-2 mt-2">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="overwrite_auto" name="overwrite_auto">
+                            <label class="form-check-label small fw-medium" for="overwrite_auto">
+                                Substituir anotações automáticas anteriores
+                            </label>
+                        </div>
+                        <div class="text-muted" style="font-size: 0.78rem;">
+                            🛡️ Anotações manuais criadas por rotuladores humanos são sempre preservadas e protegidas.
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                        <label class="small text-muted mb-0 me-2" style="font-size: 0.75rem;" title="Limiar IoU para suprimir caixas duplicadas no mesmo objeto">
+                            Supressão NMS (IoU):
+                        </label>
+                        <select class="form-select form-select-sm d-inline-block" style="width: auto;" name="iou_threshold" id="iou_threshold">
+                            <option value="0.45" selected>0.45 (Padrão)</option>
+                            <option value="0.30">0.30 (Mais rigoroso)</option>
+                            <option value="0.60">0.60 (Mais permissivo)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
+
+<script>
+    function handleMaxInstancesChange(val) {
+        const customInput = document.getElementById('custom_max_instances');
+        const badge = document.getElementById('limit-badge-info');
+        if (val === 'custom') {
+            customInput.classList.remove('d-none');
+            customInput.focus();
+            updateLimitBadge(customInput.value || '1');
+        } else {
+            customInput.classList.add('d-none');
+            if (val === '0') {
+                badge.innerText = 'Sem limite';
+                badge.className = 'badge bg-secondary-subtle text-secondary border font-monospace';
+            } else {
+                badge.innerText = `Máx ${val}`;
+                badge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle font-monospace';
+            }
+        }
+    }
+
+    function updateLimitBadge(num) {
+        const badge = document.getElementById('limit-badge-info');
+        const n = parseInt(num);
+        if (!isNaN(n) && n > 0) {
+            badge.innerText = `Máx ${n}`;
+            badge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle font-monospace';
+        } else {
+            badge.innerText = 'Sem limite';
+            badge.className = 'badge bg-secondary-subtle text-secondary border font-monospace';
+        }
+    }
+</script>
 
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-2 border-top">
             <button type="button" class="btn btn-outline-secondary d-flex align-items-center gap-1" onclick="showPredictionStep(3)">

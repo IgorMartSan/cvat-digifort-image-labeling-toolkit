@@ -422,6 +422,7 @@ class AcquisitionWorkerConfig:
     cvat_project_id: Optional[int] = None
     cvat_project_name: str = ""
     cvat_organization: str = ""
+    task_prefix: str = ""
     interval_seconds: float = 600.0
     images_per_task: int = 200
     auto_remove: bool = True
@@ -440,7 +441,7 @@ class AcquisitionWorkerConfig:
 
 
 class ActiveWorker:
-    def __init__(self, config: AcquisitionWorkerConfig):
+    def __init__(self, config: AcquisitionWorkerConfig, is_new: bool = False):
         self.config = config
         self.status: str = "stopped"  # "running", "paused", "stopped", "reconnecting", "error"
         self.last_status_message: str = "Pronto para iniciar"
@@ -459,8 +460,43 @@ class ActiveWorker:
         self.camera_folder = CAMERAS_DATA_DIR / config.camera_name
         self.camera_folder.mkdir(parents=True, exist_ok=True)
 
-        # Pré-carrega checkpoint se existir na pasta da câmera
-        self.load_checkpoint()
+        if is_new:
+            self._reset_fresh_state()
+        else:
+            # Retomada pós-reboot: pré-carrega checkpoint se existir na pasta da câmera
+            self.load_checkpoint()
+
+    def _reset_fresh_state(self) -> None:
+        """Reinicia o estado interno e os arquivos locais para garantir execução 100% nova."""
+        try:
+            if self.history_file.is_file():
+                self.history_file.unlink(missing_ok=True)
+            if self.camera_folder.is_dir():
+                for p in self.camera_folder.glob("*.*"):
+                    if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".tmp"}:
+                        try:
+                            p.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+        except Exception as exc:
+            logger.warning(f"[{self.config.camera_name}] Aviso ao limpar arquivos antigos para novo worker: {exc}")
+
+        self.captured_count = 0
+        self.tasks_created = 0
+        self._last_image_filename = None
+        self._last_image_iso = None
+        self.last_capture_time = None
+
+        if self.config.capture_mode == "history":
+            self.history_cursor = self._resolve_start_timestamp()
+            self.current_recording_time = datetime.fromtimestamp(self.history_cursor).strftime("%d/%m/%Y %H:%M:%S")
+            self.last_status_message = f"Iniciando gravação histórica a partir de {self.current_recording_time}"
+        else:
+            self.history_cursor = None
+            self.current_recording_time = None
+            self.last_status_message = "Worker pronto para iniciar captura ao vivo"
+
+        self.save_checkpoint()
 
     @property
     def history_file(self) -> Path:
@@ -536,6 +572,7 @@ class ActiveWorker:
                 "folder": self.config.camera_name,
                 "worker_id": self.config.id,
                 "capture_mode": self.config.capture_mode,
+                "start_date": self.config.start_date,
                 "history_cursor": self.history_cursor,
                 "current_recording_time": curr_time_str,
                 "current_recording_iso": rec_iso,
@@ -561,6 +598,22 @@ class ActiveWorker:
         if self.history_file.is_file():
             try:
                 data = json.loads(self.history_file.read_text(encoding="utf-8"))
+                
+                # Validação de identidade:
+                # Se for outro worker_id, ou se a data inicial configurada for diferente da salva,
+                # DESCARTA o checkpoint antigo e começa limpo a partir da nova data!
+                saved_start_date = data.get("start_date")
+                config_start_date = self.config.start_date
+                saved_worker_id = data.get("worker_id")
+
+                if self.config.capture_mode == "history":
+                    if config_start_date and saved_start_date and saved_start_date != config_start_date:
+                        logger.info(f"[{self.config.camera_name}] Data de início alterada ({config_start_date} vs {saved_start_date}). Descartando checkpoint anterior.")
+                        return False
+                    if saved_worker_id and saved_worker_id != self.config.id:
+                        logger.info(f"[{self.config.camera_name}] Checkpoint pertence a outro worker ({saved_worker_id}). Descartando.")
+                        return False
+
                 saved_cursor = data.get("history_cursor")
                 if saved_cursor is not None and isinstance(saved_cursor, (int, float)):
                     self.history_cursor = float(saved_cursor)
@@ -579,28 +632,30 @@ class ActiveWorker:
             except Exception as exc:
                 logger.warning(f"[{self.config.camera_name}] Falha ao ler .history.json: {exc}")
 
-        # 2. Se não houver .history.json, verifica se há fotos já capturadas na pasta
-        try:
-            images = sorted(
-                [p for p in self.camera_folder.iterdir() if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}],
-                key=lambda p: p.name,
-            )
-            if images:
-                last_img = images[-1]
-                match = re.match(r"^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})", last_img.stem)
-                if match:
-                    dt_str = f"{match.group(1)} {match.group(2).replace('-', ':')}"
-                    last_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                    resumed_cursor = last_dt.timestamp() + self.config.interval_seconds
-                    self.history_cursor = resumed_cursor
-                    self.current_recording_time = datetime.fromtimestamp(resumed_cursor).strftime("%d/%m/%Y %H:%M:%S")
-                    self.last_capture_time = last_dt.strftime("%H:%M:%S")
-                    self._last_image_filename = last_img.name
-                    self._last_image_iso = last_dt.isoformat()
-                    self.save_checkpoint(last_filename=last_img.name, last_file_dt=last_dt)
-                    return True
-        except Exception as exc:
-            logger.debug(f"[{self.config.camera_name}] Erro ao verificar imagens existentes: {exc}")
+        # 2. Se não houver .history.json e o usuário NÃO configurou um start_date histórico explícito,
+        # aí sim pode tentar verificar fotos já capturadas na pasta:
+        if self.config.capture_mode != "history" or not self.config.start_date:
+            try:
+                images = sorted(
+                    [p for p in self.camera_folder.iterdir() if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}],
+                    key=lambda p: p.name,
+                )
+                if images:
+                    last_img = images[-1]
+                    match = re.match(r"^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})", last_img.stem)
+                    if match:
+                        dt_str = f"{match.group(1)} {match.group(2).replace('-', ':')}"
+                        last_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                        resumed_cursor = last_dt.timestamp() + self.config.interval_seconds
+                        self.history_cursor = resumed_cursor
+                        self.current_recording_time = datetime.fromtimestamp(resumed_cursor).strftime("%d/%m/%Y %H:%M:%S")
+                        self.last_capture_time = last_dt.strftime("%H:%M:%S")
+                        self._last_image_filename = last_img.name
+                        self._last_image_iso = last_dt.isoformat()
+                        self.save_checkpoint(last_filename=last_img.name, last_file_dt=last_dt)
+                        return True
+            except Exception as exc:
+                logger.debug(f"[{self.config.camera_name}] Erro ao verificar imagens existentes: {exc}")
 
         return False
 
@@ -618,14 +673,17 @@ class ActiveWorker:
         self.status = "running"
         self.config.auto_start = True
 
-        # Carrega checkpoint para garantir retomada contínua
-        resumed = self.load_checkpoint()
-        if resumed and self.current_recording_time:
+        # Se o cursor ainda não foi definido (ex: boot sem is_new), tenta carregar checkpoint
+        resumed = False
+        if self.history_cursor is None and self.captured_count == 0:
+            resumed = self.load_checkpoint()
+
+        if resumed and self.current_recording_time and self.captured_count > 0:
             self.last_status_message = f"Retomando gravação histórica de onde parou ({self.current_recording_time})"
             self.append_log(f"🔄 Retomando gravação a partir do checkpoint salvo: {self.current_recording_time}")
         else:
             self.last_status_message = "Worker em execução contínua"
-            self.append_log("Worker iniciado.")
+            self.append_log(f"Worker iniciado ({self.current_recording_time or 'ao vivo'}).")
 
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
@@ -883,8 +941,8 @@ class ActiveWorker:
 
         first_dt = format_task_dt(batch[0].stem)
         last_dt = format_task_dt(batch[-1].stem)
-        proj_name = self.config.cvat_project_name or self.config.camera_name
-        task_name = f"{proj_name} | {first_dt} a {last_dt}"
+        prefix = (getattr(self.config, "task_prefix", None) or "").strip() or self.config.cvat_project_name or self.config.camera_name
+        task_name = f"{prefix} | {first_dt} a {last_dt}"
 
         self.append_log(f"📦 Lote completo atingido ({len(batch)} fotos). Criando task no CVAT: '{task_name}'...")
 
@@ -951,6 +1009,7 @@ class ActiveWorker:
             "cvat_project_id": self.config.cvat_project_id,
             "cvat_project_name": self.config.cvat_project_name,
             "cvat_organization": self.config.cvat_organization,
+            "task_prefix": getattr(self.config, "task_prefix", ""),
             "interval_seconds": self.config.interval_seconds,
             "images_per_task": self.config.images_per_task,
             "auto_remove": self.config.auto_remove,
@@ -996,7 +1055,7 @@ class AcquisitionManager:
             data = json.loads(WORKERS_FILE.read_text(encoding="utf-8"))
             for item in data:
                 cfg = AcquisitionWorkerConfig(**item)
-                worker = ActiveWorker(cfg)
+                worker = ActiveWorker(cfg, is_new=False)
                 self._workers[cfg.id] = worker
         except Exception as exc:
             logger.error(f"Erro ao carregar workers de aquisicao: {exc}")
@@ -1032,10 +1091,26 @@ class AcquisitionManager:
 
     def create_worker(self, config: AcquisitionWorkerConfig, auto_start: bool = True) -> ActiveWorker:
         with self._lock:
-            if config.id in self._workers:
-                self._workers[config.id].stop()
+            # 1. Se já existir worker para a mesma câmera (ou mesmo ID), para, limpa e substitui
+            for existing_id, existing_w in list(self._workers.items()):
+                if (existing_id == config.id or 
+                    existing_w.config.camera_name.casefold() == config.camera_name.casefold()):
+                    logger.info(f"Substituindo worker anterior '{existing_id}' da câmera '{config.camera_name}'.")
+                    existing_w.stop()
+                    del self._workers[existing_id]
+
+            # 2. Garante que qualquer resquício em disco (imagens antigas, checkpoints antigos)
+            # seja completamente apagado para que o novo worker comece 100% do zero.
+            cam_folder = CAMERAS_DATA_DIR / config.camera_name
+            if cam_folder.is_dir():
+                try:
+                    shutil.rmtree(cam_folder, ignore_errors=True)
+                except Exception as exc:
+                    logger.warning(f"Erro ao limpar pasta da câmera {config.camera_name}: {exc}")
+            cam_folder.mkdir(parents=True, exist_ok=True)
+
             config.auto_start = auto_start
-            worker = ActiveWorker(config)
+            worker = ActiveWorker(config, is_new=True)
             self._workers[config.id] = worker
             self.save_workers()
             if auto_start:
@@ -1084,18 +1159,63 @@ class AcquisitionManager:
             return True
         return False
 
-    def delete_worker(self, worker_id: str, delete_images: bool = False) -> bool:
+    def delete_worker(self, worker_id: str, delete_images: bool = True) -> bool:
         with self._lock:
             w = self._workers.pop(worker_id, None)
+            cam_name = None
             if w:
                 w.stop()
+                cam_name = w.config.camera_name
+                # 1. Remove checkpoint .history.json
+                if w.history_file.is_file():
+                    try:
+                        w.history_file.unlink(missing_ok=True)
+                    except Exception as e:
+                        logger.warning(f"Erro ao remover .history.json de {w.config.camera_name}: {e}")
+
+                # 2. Se delete_images for True (padrão), remove completamente a pasta de imagens locais
                 if delete_images and w.camera_folder.is_dir():
                     try:
                         shutil.rmtree(w.camera_folder, ignore_errors=True)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Erro ao remover pasta da câmera {w.config.camera_name}: {e}")
+
+                # 3. Remove a sincronização das configurações de pipeline.env e digifort-scripts/.env
+                try:
+                    unsync_pipeline_files(w.config.camera_name)
+                except Exception:
+                    pass
+
                 self.save_workers()
                 return True
+
+            # Se não estava em memória, tenta remover diretamente da persistência JSON
+            if WORKERS_FILE.is_file():
+                try:
+                    content = WORKERS_FILE.read_text(encoding="utf-8")
+                    items = json.loads(content)
+                    filtered = []
+                    for it in items:
+                        if it.get("id") == worker_id:
+                            cam_name = it.get("camera_name")
+                        else:
+                            filtered.append(it)
+                    if len(filtered) != len(items):
+                        WORKERS_FILE.write_text(json.dumps(filtered, indent=2), encoding="utf-8")
+                        if cam_name:
+                            cam_dir = CAMERAS_DATA_DIR / cam_name
+                            if delete_images and cam_dir.is_dir():
+                                shutil.rmtree(cam_dir, ignore_errors=True)
+                            elif (cam_dir / ".history.json").is_file():
+                                (cam_dir / ".history.json").unlink(missing_ok=True)
+                            try:
+                                unsync_pipeline_files(cam_name)
+                            except Exception:
+                                pass
+                        return True
+                except Exception:
+                    pass
+
             return False
 
 
@@ -1202,3 +1322,43 @@ def sync_pipeline_files(config: AcquisitionWorkerConfig) -> Dict[str, Any]:
     except Exception as exc:
         logger.error(f"Erro ao sincronizar arquivos da pipeline: {exc}")
     return results
+
+
+def unsync_pipeline_files(camera_name: str) -> None:
+    """Remove a câmera dos arquivos digifort-scripts/.env e cvat_scripts/.env ao excluir o worker."""
+    root_dir = Path(__file__).resolve().parent.parent.parent.parent
+    try:
+        digi_env_path = root_dir / "digifort-scripts" / ".env"
+        if digi_env_path.is_file():
+            content = digi_env_path.read_text(encoding="utf-8")
+            match = re.search(r"CAMERAS='(\[.*?\])'", content, re.DOTALL)
+            if match:
+                try:
+                    cams = json.loads(match.group(1))
+                    filtered = [c for c in cams if c.get("folder") != camera_name]
+                    if len(filtered) != len(cams):
+                        cams_json = json.dumps(filtered, indent=2)
+                        new_content = re.sub(r"CAMERAS='\[.*?\]'", f"CAMERAS='{cams_json}'", content, flags=re.DOTALL)
+                        digi_env_path.write_text(new_content, encoding="utf-8")
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.debug(f"Aviso ao remover câmera de digifort-scripts/.env: {e}")
+
+    try:
+        cvat_env_path = root_dir / "cvat_scripts" / ".env"
+        if cvat_env_path.is_file():
+            content = cvat_env_path.read_text(encoding="utf-8")
+            match = re.search(r"FOLDERS='(\[.*?\])'", content, re.DOTALL)
+            if match:
+                try:
+                    folders = json.loads(match.group(1))
+                    filtered = [f for f in folders if not str(f.get("images_dir", "")).endswith(f"/{camera_name}")]
+                    if len(filtered) != len(folders):
+                        folders_json = json.dumps(filtered, indent=2)
+                        new_content = re.sub(r"FOLDERS='\[.*?\]'", f"FOLDERS='{folders_json}'", content, flags=re.DOTALL)
+                        cvat_env_path.write_text(new_content, encoding="utf-8")
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.debug(f"Aviso ao remover câmera de cvat_scripts/.env: {e}")

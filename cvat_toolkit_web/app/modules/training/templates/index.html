@@ -77,10 +77,10 @@
         train_all_images_choice: 'false',
         model_name_choice: 'yolo11n',
         custom_weights: '',
-        mode: 'detection',
+        mode: '',
         derive_polygons: true,
         sample_limit: '',
-        epochs: '100',
+        epochs: '1000',
         batch: '16',
         image_size: '640',
         device: 'auto'
@@ -224,6 +224,19 @@
             stepNum = s4 ? 4 : (s3 ? 3 : 1);
         }
 
+        // Validação obrigatória da modalidade antes de permitir ir para a Etapa 5
+        if (stepNum === 5) {
+            const modeSelect = document.getElementById('train-mode');
+            if (modeSelect && !modeSelect.value) {
+                modeSelect.classList.add('is-invalid');
+                modeSelect.focus();
+                alert('Por favor, selecione o Tipo de Treinamento (Detection ou Segmentation) na Etapa 4 antes de avançar.');
+                return;
+            } else if (modeSelect) {
+                modeSelect.classList.remove('is-invalid');
+            }
+        }
+
         // Mostra APENAS o formulário da etapa atual
         if (s1) s1.style.display = (stepNum === 1) ? 'block' : 'none';
         if (s2) s2.style.display = (stepNum === 2) ? 'block' : 'none';
@@ -309,16 +322,28 @@
         const modelChoice = formData.get('model_name_choice') || 'yolo11n';
         const customWeights = formData.get('custom_weights') || null;
 
+        const mode = formData.get('mode');
+        if (!mode) {
+            alert('Por favor, selecione o Tipo de Treinamento (Detection ou Segmentation).');
+            showTrainingStep(4);
+            const modeSelect = document.getElementById('train-mode');
+            if (modeSelect) {
+                modeSelect.classList.add('is-invalid');
+                modeSelect.focus();
+            }
+            return;
+        }
+
         const payload = {
             project_id: parseInt(formData.get('project_id')),
             task_ids: taskIds,
-            mode: formData.get('mode') || 'detection',
+            mode: mode,
             derive_polygons: formData.get('derive_polygons') === 'on',
             train_all_images: trainAllImagesChoice,
             model_name: modelChoice !== 'custom_local' ? modelChoice : 'custom',
             custom_weights: modelChoice === 'custom_local' ? customWeights : null,
             sample_limit: sampleLimit ? parseInt(sampleLimit) : null,
-            epochs: parseInt(formData.get('epochs') || 100),
+            epochs: parseInt(formData.get('epochs') || 1000),
             batch: parseInt(formData.get('batch') || 16),
             image_size: parseInt(formData.get('image_size') || 640),
             device: formData.get('device') || 'auto',

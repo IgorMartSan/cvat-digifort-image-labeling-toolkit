@@ -5,7 +5,7 @@ import json
 import random
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from PIL import Image
 
@@ -38,6 +38,10 @@ def collect_task_items(
     include_empty: bool = False,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> List[Dict[str, Any]]:
+    meta = task.get_meta()
+    frame_count = int(_value(meta, "size", 0))
+    deleted_frames = set(_value(meta, "deleted_frames", []) or [])
+
     annotations = task.get_annotations()
     by_frame: Dict[int, List[Dict[str, Any]]] = {}
 
@@ -45,28 +49,31 @@ def collect_task_items(
         kind = str(_value(shape, "type", "")).lower()
         if kind not in {"rectangle", "polygon"}:
             continue
+        frame_idx = int(_value(shape, "frame", 0))
+        if frame_idx in deleted_frames:
+            continue
         if (mode == "detection" and (kind == "rectangle" or derive_polygons)) or (
             mode == "segmentation" and kind == "polygon"
         ):
-            by_frame.setdefault(int(_value(shape, "frame", 0)), []).append({
+            by_frame.setdefault(frame_idx, []).append({
                 "type": kind,
                 "label_id": int(_value(shape, "label_id")),
                 "points": _value(shape, "points", []),
             })
 
-    meta = task.get_meta()
-    frame_count = int(_value(meta, "size", 0))
+    active_frames = [f for f in range(frame_count) if f not in deleted_frames]
+    total_active = len(active_frames)
     items = []
-    for frame in range(frame_count):
+    for idx, frame in enumerate(active_frames):
         objects = by_frame.get(frame, [])
         if not objects and not include_empty:
             continue
 
-        if on_progress and (frame % 5 == 0 or frame == frame_count - 1):
+        if on_progress and (idx % 5 == 0 or idx == total_active - 1):
             on_progress(
-                frame + 1,
-                frame_count,
-                f"📥 Baixando e verificando frame {frame + 1}/{frame_count} (Tarefa #{task.id})...",
+                idx + 1,
+                total_active,
+                f"📥 Baixando e verificando frame {idx + 1}/{total_active} (Tarefa #{task.id})...",
             )
 
         items.append({
