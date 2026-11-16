@@ -126,8 +126,17 @@
 
                             <!-- Projeto & Classes -->
                             <td class="align-middle">
-                                <div class="d-flex align-items-center gap-2">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
                                     <strong class="text-dark">{{ m.project_name }}</strong>
+                                    {% if m.images_count %}
+                                    <span class="badge bg-light text-dark border px-2 py-0" style="font-size: 0.7rem;">
+                                        📷 {{ m.images_count }} imgs
+                                    </span>
+                                    {% elif m.images_selected %}
+                                    <span class="badge bg-light text-dark border px-2 py-0" style="font-size: 0.7rem;">
+                                        📷 {{ m.images_selected }} imgs
+                                    </span>
+                                    {% endif %}
                                     {% if m.task_ids %}
                                     <span class="badge-clean-neutral" style="font-size: 0.7rem;">
                                         {{ m.task_ids|length }} tarefa(s)
@@ -160,7 +169,9 @@
                                     <span class="text-muted">Imgsz:</span> <strong>{{ m.image_size }}</strong>
                                 </div>
                                 <div class="mt-1 text-muted">
-                                    {% if m.map50 and m.map50 != '-' %}
+                                    {% if m.map50_display and m.map50_display != '-' %}
+                                    <span class="text-success fw-semibold">mAP50: {{ m.map50_display }} <small class="text-muted fw-normal">({{ m.map50 }})</small></span>
+                                    {% elif m.map50 and m.map50 != '-' %}
                                     <span class="text-success fw-semibold">mAP50: {{ m.map50 }}</span>
                                     {% endif %}
                                     {% if m.metrics and m.metrics.get('train/box_loss') %}

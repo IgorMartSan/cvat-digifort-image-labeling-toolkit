@@ -14,6 +14,7 @@ from app.core.templates import templates
 from app.frameworks.yolo.trainer import list_available_models
 from app.modules.training.service import (
     get_model_details_service,
+    group_models_by_project,
     list_trained_models_service,
 )
 from app.modules.prediction.schemas import StartPredictionRequest
@@ -34,10 +35,12 @@ async def prediction_page(request: Request, model_id: Optional[str] = Query(None
         models = [m for m in trained_models if m.get("has_weights")]
         if not models:
             models = list_available_models()
+        models_by_project = group_models_by_project(models)
         error = None
     except Exception as exc:
         projects = []
         models = []
+        models_by_project = {}
         error = f"Erro ao inicializar módulo de predição: {str(exc)}"
 
     return templates.TemplateResponse(
@@ -47,6 +50,7 @@ async def prediction_page(request: Request, model_id: Optional[str] = Query(None
             "active_tab": "prediction",
             "projects": projects,
             "models": models,
+            "models_by_project": models_by_project,
             "preselected_model_id": model_id,
             "error": error,
             "pred_status": current_pred_status,

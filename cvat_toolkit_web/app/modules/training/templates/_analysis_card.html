@@ -268,11 +268,23 @@
                 <div class="mt-3 p-3 border rounded bg-light" id="custom-model-selector" style="display: none;">
                     <label class="form-label small fw-bold mb-1">Selecione o Checkpoint Salvo:</label>
                     <select class="form-select" name="custom_weights" id="custom_weights_input">
-                        {% for m in available_models %}
-                        <option value="{{ m.checkpoint_path }}">
-                            {{ m.id }} - Projeto: {{ m.project_name }} ({{ m.mode }} - {{ m.epochs }} épocas)
-                        </option>
-                        {% endfor %}
+                        {% if available_models_by_project %}
+                            {% for proj_name, p_models in available_models_by_project.items() %}
+                            <optgroup label="📁 Projeto: {{ proj_name }}">
+                                {% for m in p_models %}
+                                <option value="{{ m.checkpoint_path }}">
+                                    {{ m.dropdown_label or (m.id ~ ' - Projeto: ' ~ m.project_name ~ ' (' ~ m.mode ~ ' - ' ~ m.epochs ~ ' épocas)') }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        {% else %}
+                            {% for m in available_models %}
+                            <option value="{{ m.checkpoint_path }}">
+                                {{ m.dropdown_label or (m.id ~ ' - Projeto: ' ~ m.project_name ~ ' (' ~ m.mode ~ ' - ' ~ m.epochs ~ ' épocas)') }}
+                            </option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
                 {% endif %}

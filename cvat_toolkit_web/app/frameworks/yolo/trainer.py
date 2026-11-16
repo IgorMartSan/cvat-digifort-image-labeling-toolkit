@@ -127,13 +127,16 @@ class YoloTrainer(BaseTrainer):
             if isinstance(value, (int, float))
         }
 
+        now_utc = datetime.now(timezone.utc)
         metadata.update({
             "framework": self.name,
             "mode": mode,
-            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "trained_at": now_utc.isoformat(),
+            "trained_at_formatted": now_utc.strftime("%d/%m/%Y %H:%M:%S"),
             "epochs": epochs,
             "batch": batch,
             "image_size": image_size,
+            "images_count": metadata.get("images_count") or metadata.get("images_selected", 0),
             "metrics": metrics,
             "ultralytics_version": __import__("ultralytics").__version__,
         })
@@ -161,19 +164,52 @@ def list_available_models() -> List[Dict[str, Any]]:
             checkpoint = metadata_path.parent / "best.pt"
             if checkpoint.is_file():
                 run_name = f"{metadata_path.parent.parent.name}/{metadata_path.parent.name}"
+                mode = metadata.get("mode", "detection")
+                images_count = metadata.get("images_count") or metadata.get("images_selected", 0)
+                metrics = metadata.get("metrics", {})
+                map50_val = metrics.get("metrics/mAP50(M)") if mode == "segmentation" else metrics.get("metrics/mAP50(B)")
+                if map50_val is None:
+                    map50_val = metrics.get("metrics/mAP50(B)") or metrics.get("map50")
+                map50_str = f"{round(float(map50_val)*100, 1)}%" if isinstance(map50_val, (int, float)) else "-"
+
+                trained_at = metadata.get("trained_at", "")
+                trained_at_short = "-"
+                if trained_at:
+                    try:
+                        trained_at_short = datetime.fromisoformat(trained_at.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                    except Exception:
+                        trained_at_short = trained_at[:16].replace("T", " ")
+
+                proj_name = metadata.get("project", {}).get("name") or metadata.get("project_name", "Manual/Importado")
+                run_display = metadata_path.parent.name
+                mode_desc = "Segmentação" if mode == "segmentation" else "Detecção"
+                parts = [run_display, f"({mode_desc})"]
+                if trained_at_short != "-":
+                    parts.append(f"• {trained_at_short}")
+                if images_count:
+                    parts.append(f"• {images_count} imgs")
+                if map50_str != "-":
+                    parts.append(f"• mAP50: {map50_str}")
+
+                dropdown_label = " ".join(parts)
+
                 found.append({
                     "id": run_name,
                     "checkpoint_path": str(checkpoint),
                     "run_dir": str(metadata_path.parent),
-                    "mode": metadata.get("mode", "detection"),
+                    "mode": mode,
                     "framework": metadata.get("framework", "yolo11"),
-                    "trained_at": metadata.get("trained_at", ""),
-                    "images_selected": metadata.get("images_selected", 0),
+                    "trained_at": trained_at,
+                    "trained_at_short": trained_at_short,
+                    "images_count": images_count,
+                    "images_selected": images_count,
                     "epochs": metadata.get("epochs", 0),
-                    "metrics": metadata.get("metrics", {}),
+                    "metrics": metrics,
+                    "map50": map50_str,
                     "label_ids": metadata.get("label_ids", {}),
                     "class_mapping": metadata.get("class_mapping", {}),
-                    "project_name": metadata.get("project", {}).get("name", "N/A"),
+                    "project_name": proj_name,
+                    "dropdown_label": dropdown_label,
                 })
         except Exception:
             continue

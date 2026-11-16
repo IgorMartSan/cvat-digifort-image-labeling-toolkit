@@ -37,15 +37,19 @@
         </div>
         <div class="col-md-3 col-6">
             <div class="bg-light p-2 rounded border small">
-                <span class="text-muted d-block" style="font-size: 0.75rem;">Hiperparâmetros</span>
-                <span class="text-dark"><strong>{{ m.epochs }}</strong> épocas • batch <strong>{{ m.batch }}</strong></span>
+                <span class="text-muted d-block" style="font-size: 0.75rem;">Imagens Usadas</span>
+                <strong class="text-dark">{% if m.images_count %}{{ m.images_count }} imagens{% elif m.images_selected %}{{ m.images_selected }} imagens{% else %}-{% endif %}</strong>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="bg-light p-2 rounded border small">
                 <span class="text-muted d-block" style="font-size: 0.75rem;">Melhor mAP50</span>
-                {% if m.map50 and m.map50 != '-' or m.best_map50 and m.best_map50 != '-' %}
-                <strong class="text-success">{{ m.map50 or m.best_map50 }}</strong>
+                {% if m.map50_display and m.map50_display != '-' %}
+                <strong class="text-success">{{ m.map50_display }} <small class="text-muted fw-normal">({{ m.map50 }})</small></strong>
+                {% elif m.map50 and m.map50 != '-' %}
+                <strong class="text-success">{{ m.map50 }}</strong>
+                {% elif m.best_map50 and m.best_map50 != '-' %}
+                <strong class="text-success">{{ m.best_map50 }}</strong>
                 {% else %}
                 <span class="text-muted">-</span>
                 {% endif %}

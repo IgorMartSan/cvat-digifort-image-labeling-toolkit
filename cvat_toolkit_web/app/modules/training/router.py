@@ -19,6 +19,7 @@ from app.modules.training.service import (
     current_train_status,
     delete_trained_model_service,
     get_model_details_service,
+    group_models_by_project,
     list_trained_models_service,
     start_training_job,
 )
@@ -138,6 +139,7 @@ async def analyze_tasks(
     try:
         stats = analyze_dataset_service(project_id, task_ids)
         available_models = list_available_models()
+        available_models_by_project = group_models_by_project(available_models)
         return templates.TemplateResponse(
             request=request,
             name="training/templates/_analysis_card.html",
@@ -146,6 +148,7 @@ async def analyze_tasks(
                 "task_ids": task_ids,
                 "stats": stats,
                 "available_models": available_models,
+                "available_models_by_project": available_models_by_project,
             },
         )
     except Exception as exc:

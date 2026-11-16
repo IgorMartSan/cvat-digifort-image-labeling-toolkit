@@ -42,20 +42,38 @@
                 <div class="col-md-3">
                     <label class="form-label small fw-bold mb-0">Modelo Treinado (Pesos):</label>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-8">
                     <select class="form-select" id="model-select" onchange="onModelSelect(this.value)">
                         <option value="" disabled {% if not preselected_model_id %}selected{% endif %}>
                             Selecione um modelo treinado...
                         </option>
-                        {% for m in models %}
-                        <option value="{{ m.id }}"
-                                data-checkpoint="{{ m.checkpoint_path }}"
-                                data-mode="{{ m.mode }}"
-                                data-run-name="{{ m.run_name }}"
-                                {% if preselected_model_id == m.id %}selected{% endif %}>
-                            {{ m.id }} ({{ m.mode_label or m.mode|title }} - {{ (m.framework or 'yolo11')|upper }}) - {{ m.size_mb or m.weights_size_mb }} MB {% if m.map50 and m.map50 != '-' %}| mAP50: {{ m.map50 }}{% endif %}
-                        </option>
-                        {% endfor %}
+                        {% if models_by_project %}
+                            {% for proj_name, p_models in models_by_project.items() %}
+                            <optgroup label="📁 Projeto: {{ proj_name }} ({{ p_models|length }} modelo{{ 's' if p_models|length > 1 else '' }})">
+                                {% for m in p_models %}
+                                <option value="{{ m.id }}"
+                                        data-checkpoint="{{ m.checkpoint_path }}"
+                                        data-mode="{{ m.mode }}"
+                                        data-run-name="{{ m.run_name }}"
+                                        data-project="{{ m.project_name }}"
+                                        {% if preselected_model_id == m.id %}selected{% endif %}>
+                                    {{ m.dropdown_label }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                        {% else %}
+                            {% for m in models %}
+                            <option value="{{ m.id }}"
+                                    data-checkpoint="{{ m.checkpoint_path }}"
+                                    data-mode="{{ m.mode }}"
+                                    data-run-name="{{ m.run_name }}"
+                                    data-project="{{ m.project_name }}"
+                                    {% if preselected_model_id == m.id %}selected{% endif %}>
+                                {{ m.dropdown_label or m.id }}
+                            </option>
+                            {% endfor %}
+                        {% endif %}
                     </select>
                 </div>
             </div>

@@ -181,8 +181,11 @@ def execute_training_job_sync(job: Any, queue_mgr: Any) -> None:
 
             metadata = {
                 "project": {"id": int(project.id), "name": project.name},
+                "project_name": project.name,
+                "project_id": int(project.id),
                 "task_ids": req.task_ids,
                 "label_ids": project_labels,
+                "images_count": len(items),
                 "images_selected": len(items),
                 "model_name": req.model_name,
                 "train_all_images": req.train_all_images,
@@ -321,27 +324,58 @@ def list_trained_models_service() -> List[Dict[str, Any]]:
                 trained_at = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
 
             trained_at_formatted = "-"
+            trained_at_short = "-"
             if trained_at:
                 try:
                     cleaned = trained_at.replace("Z", "+00:00")
                     dt = datetime.fromisoformat(cleaned)
                     trained_at_formatted = dt.strftime("%d/%m/%Y %H:%M:%S")
+                    trained_at_short = dt.strftime("%d/%m/%Y %H:%M")
                 except Exception:
                     trained_at_formatted = trained_at[:19].replace("T", " ")
+                    trained_at_short = trained_at[:16].replace("T", " ")
 
             framework = metadata.get("framework", "yolo11")
             model_base = metadata.get("model_name", "YOLO")
             project_info = metadata.get("project", {})
-            project_name = project_info.get("name", f"Projeto #{project_info.get('id', '-')}" if project_info.get("id") else "Manual/Importado")
+            project_id = project_info.get("id") or metadata.get("project_id")
+            project_name = project_info.get("name") or metadata.get("project_name") or (f"Projeto #{project_id}" if project_id else "Manual / Importado")
+
+            images_count = metadata.get("images_count") or metadata.get("images_selected")
+            if images_count is not None:
+                try:
+                    images_count = int(images_count)
+                except (ValueError, TypeError):
+                    images_count = None
 
             label_names = []
             if metadata.get("label_ids"):
                 label_names = list(metadata["label_ids"].values())
 
             metrics = metadata.get("metrics", {})
-            map50 = metrics.get("metrics/mAP50(B)") or metrics.get("map50", "-")
-            if isinstance(map50, float):
-                map50 = round(map50, 4)
+            if mode == "segmentation":
+                map50_raw = metrics.get("metrics/mAP50(M)") or metrics.get("metrics/mAP50(B)") or metrics.get("map50")
+            else:
+                map50_raw = metrics.get("metrics/mAP50(B)") or metrics.get("metrics/mAP50(M)") or metrics.get("map50")
+
+            map50 = None
+            map50_display = "-"
+            if isinstance(map50_raw, (int, float)):
+                map50 = round(float(map50_raw), 4)
+                map50_display = f"{round(map50 * 100, 1)}%"
+
+            mode_desc = "Segmentação" if mode == "segmentation" else ("Detecção" if mode == "detection" else mode.capitalize())
+            label_parts = [run_name, f"({mode_desc})"]
+            if trained_at_short and trained_at_short != "-":
+                label_parts.append(f"• {trained_at_short}")
+            if images_count:
+                label_parts.append(f"• {images_count} imgs")
+            if map50_display != "-":
+                label_parts.append(f"• mAP50: {map50_display}")
+            elif size_mb > 0:
+                label_parts.append(f"• {size_mb} MB")
+
+            dropdown_label = " ".join(label_parts)
 
             models_list.append({
                 "id": f"{mode}/{run_name}",
@@ -356,18 +390,38 @@ def list_trained_models_service() -> List[Dict[str, Any]]:
                 "run_dir": str(run_dir),
                 "trained_at": trained_at,
                 "trained_at_formatted": trained_at_formatted,
+                "trained_at_short": trained_at_short,
+                "images_count": images_count,
+                "images_selected": images_count,
                 "epochs": metadata.get("epochs", "-"),
                 "batch": metadata.get("batch", "-"),
                 "image_size": metadata.get("image_size", "-"),
                 "metrics": metrics,
-                "map50": map50,
+                "map50": map50 if map50 is not None else "-",
+                "map50_display": map50_display,
+                "project_id": project_id,
                 "project_name": project_name,
+                "dropdown_label": dropdown_label,
                 "task_ids": metadata.get("task_ids", []),
                 "labels": label_names,
             })
 
     models_list.sort(key=lambda m: m["trained_at"], reverse=True)
     return models_list
+
+
+def group_models_by_project(models: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Agrupa uma lista de modelos treinados por projeto de origem (para exibição em <optgroup> nos dropdowns).
+    Preserva a ordenação cronológica decrescente dos modelos e dos projetos.
+    """
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for m in models:
+        p_name = m.get("project_name") or "Outros / Importados"
+        if p_name not in grouped:
+            grouped[p_name] = []
+        grouped[p_name].append(m)
+    return grouped
 
 
 def delete_trained_model_service(mode: str, run_name: str) -> bool:

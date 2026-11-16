@@ -60,6 +60,44 @@ class TestCvatToolkitWebApp(unittest.TestCase):
         self.assertIn("model-select", response.text)
         self.assertIn("dest-project-select", response.text)
         self.assertIn("Projeto Destino", response.text)
+        self.assertIn("<optgroup label=", response.text)
+
+    def test_models_grouped_by_project_in_prediction_dropdown(self):
+        """Valida que os modelos treinados são agrupados por projeto de origem com optgroup e informações ricas."""
+        from app.modules.training.service import group_models_by_project
+
+        sample_models = [
+            {
+                "id": "segmentation/run_001",
+                "run_name": "run_001",
+                "mode": "segmentation",
+                "project_name": "VO2C01",
+                "images_count": 319,
+                "map50": 0.9882,
+                "map50_display": "98.8%",
+                "trained_at_short": "16/11/2026 13:26",
+                "dropdown_label": "run_001 (Segmentação) • 16/11/2026 13:26 • 319 imgs • mAP50: 98.8%",
+                "has_weights": True,
+            },
+            {
+                "id": "detection/run_002",
+                "run_name": "run_002",
+                "mode": "detection",
+                "project_name": "VO2C05",
+                "images_count": 150,
+                "map50": 0.854,
+                "map50_display": "85.4%",
+                "trained_at_short": "15/11/2026 10:00",
+                "dropdown_label": "run_002 (Detecção) • 15/11/2026 10:00 • 150 imgs • mAP50: 85.4%",
+                "has_weights": True,
+            },
+        ]
+        grouped = group_models_by_project(sample_models)
+        self.assertIn("VO2C01", grouped)
+        self.assertIn("VO2C05", grouped)
+        self.assertEqual(len(grouped["VO2C01"]), 1)
+        self.assertEqual(len(grouped["VO2C05"]), 1)
+        self.assertEqual(grouped["VO2C01"][0]["dropdown_label"], "run_001 (Segmentação) • 16/11/2026 13:26 • 319 imgs • mAP50: 98.8%")
 
     def test_prediction_model_info_endpoint(self):
         # detection/run_001 existe no disco de testes
