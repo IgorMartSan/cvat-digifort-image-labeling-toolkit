@@ -1,6 +1,8 @@
-# Imagens e progresso gerados pelos scripts.
-/volume/
-pipeline.env
+# Ambientes virtuais e caches
 .venv/
 .uv-cache/
 __pycache__/
+*.py[cod]
+
+# Configurações locais
+.env

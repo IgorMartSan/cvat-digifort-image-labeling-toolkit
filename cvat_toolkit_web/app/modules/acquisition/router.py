@@ -163,7 +163,7 @@ async def create_worker_endpoint(request: Request):
         capture_mode = str(form.get("capture_mode") or "live")
         start_date = form.get("start_date") or None
         end_date = form.get("end_date") or None
-        sync_pipeline = form.get("sync_pipeline") not in {"false", "0", "off"}
+        sync_pipeline = str(form.get("sync_pipeline", "")).lower() in {"true", "1", "on"}
         task_prefix = (form.get("task_prefix") or "").strip()
 
         cam_name = (form.get("camera_name") or "").strip()

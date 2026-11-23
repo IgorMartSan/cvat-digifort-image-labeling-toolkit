@@ -1,320 +1,78 @@
-# CVAT Digifort Image Labeling Toolkit
+# CVAT AI Toolkit Web
 
-**Primeiro uso:** siga o [passo a passo para executar os dois scripts](README_USO.md).
-O guia também explica por que manter coleta e envio separados.
+Plataforma Web unificada em FastAPI para **Aquisição de Imagens Digifort**, **Treinamento de Modelos YOLO (YOLO11)**, **Auto-Anotação assistida por IA no CVAT** e **Fila Sequencial de Execução (FIFO)** com telemetria de GPU/CPU em tempo real.
 
-Scripts Python para coleta de imagens de câmeras IP, integração com Digifort e
-envio para projetos de anotação no CVAT. Ferramentas para image collection,
-image labeling, datasets e computer vision, com novas integrações conforme a necessidade.
+---
 
-## Organização
-
-| Pasta | Finalidade | Guia |
-|---|---|---|
-| `cvat_toolkit_web` | Interface Web FastAPI para Treinamento YOLO, Auto-Anotação CVAT e Fila Sequencial de Tarefas. | [Web Toolkit](cvat_toolkit_web/README.md) • [Arquitetura de Tarefas](cvat_toolkit_web/README_ARQUITETURA_TASKS.md) |
-| `pipeline` | Serviço unificado da pipeline: coleta contínua e envio resiliente ao CVAT com retry infinito. | [Serviço](pipeline/README.md) |
-| `digifort-scripts` | Coleta HTTP/HTTPS de várias câmeras, ao vivo ou do histórico Digifort. | [Coletor](digifort-scripts/README.md) |
-| `cvat_scripts` | Envio das pastas definidas em JSON ao CVAT, com projeto, lotes e retomada por câmera. | [Uploader](cvat_scripts/README.md) |
-| `auto_task_cvat` | Scripts anteriores de captura e integração, utilizados como referência. | [Arquivos anteriores](auto_task_cvat/) |
+## 🚀 Módulos da Aplicação
 
 ```mermaid
 flowchart LR
-    A[Digifort ou câmera HTTP] --> B[Coletor]
-    B --> C[Pasta da câmera]
-    C --> D[Uploader: lote completo]
-    D --> E[Projeto CVAT]
-    E --> F[Confirmar imagens]
-    F --> G[Remover lote local se habilitado]
+    A[📹 Câmeras Digifort] -->|Aquisição & Lotes| B[🏷️ Tasks no CVAT]
+    B -->|Dataset Export & Filtro| C[🏋️ Treinamento YOLO11]
+    C -->|Pesos Treinados .pt| D[🎯 Auto-Anotação CVAT]
+    D -->|Pré-Anotações| B
+    B -.->|Ciclo Contínuo de Melhoria| C
 ```
 
-O coletor e o uploader são processos separados. Não exigem banco de dados, Redis
-ou filas. Cada pasta tem seu próprio `.env`, `pyproject.toml` e `uv.lock`.
+### 1. 📹 Aquisição de Imagens (Digifort & Câmeras IP)
+- **Wizard Interativo:** Teste de snapshot ao vivo e histórico diretamente pelo navegador.
+- **Workers em Background:** Cada câmera roda seu próprio worker com checkpoint seguro em `.history.json`, retomando exatamente do ponto onde parou mesmo após reinicialização.
+- **Telemetria PTZ:** Suporte a posicionamento Pan, Tilt, Zoom e filtragem por presets autorizados.
+- **Criação Automática de Tasks:** Envio automático de lotes para projetos do CVAT com prefixos customizáveis.
 
-## Requisitos
+### 2. 🏋️ Treinamento de Modelos YOLO
+- **Suporte YOLO11:** Detecção de Objetos (`Bounding Boxes`) e Segmentação de Instâncias (`Polígonos`).
+- **Composição de Dataset:** Escolha de tarefas concluídas, filtragem inteligente de frames deletados no CVAT e inclusão opcional de fotos de fundo negativo.
+- **Hiperparâmetros:** Controle de épocas (padrão 1000 épocas), batch size, resolução (`imgsz`), amostragem estratificada e seleção de dispositivo (GPU CUDA / CPU).
+- **Catálogo de Modelos Treinados:** Visualização detalhada de curvas de treino, métricas de loss/mAP50, matriz de confusão e download dos pesos `best.pt`.
 
-- Python 3.12+ e uv disponíveis no terminal.
-- Acesso de rede às câmeras/Digifort e ao CVAT.
-- Organização CVAT e uma conta com permissão para criar projetos e tasks.
-- Para histórico, permissão de consultar e visualizar gravações no Digifort.
+### 3. 🎯 Auto-Anotação / Inferência
+- **Inferência Assistida por IA:** Aplica modelos treinados sobre tarefas novas ou pendentes no CVAT.
+- **Limitação de Instâncias por Imagem:** Opção de limitar quantidade máxima de detecções por frame (priorizando maior confiança).
+- **Estágio de Validação:** Marca automaticamente tarefas processadas como `validation` (prontas para revisão humana rápida).
 
-Execute os comandos dentro da pasta do script. O uv prepara as dependências.
-O SDK do uploader está alinhado ao CVAT 2.62.0. Os comandos abaixo usam PowerShell.
+### 4. 📋 Fila Sequencial de Execução (Jobs FIFO)
+- **Garantia de Estabilidade:** Fila única que impede execuções concorrentes de GPU/VRAM, prevenindo erros de memória (`Out Of Memory`).
+- **Acompanhamento em Tempo Real:** Logs e progresso percentual via Server-Sent Events (SSE).
+- **Cancelamento Seguro:** Permite cancelar tarefas em execução ou na fila a qualquer momento.
 
-## Configurar e executar o fluxo completo
+---
 
-### 1. Preparar os arquivos .env
+## 💻 Como Iniciar o Sistema
 
-Na raiz do repositório, copie os modelos somente se ainda não houver configuração:
+### Pré-requisitos
+- Python 3.11+ e gerenciador de pacotes `uv`.
+- Acesso à rede com o servidor Digifort e a instância do CVAT.
 
-```powershell
-if (-not (Test-Path -LiteralPath 'digifort-scripts/.env')) {
-    Copy-Item -LiteralPath 'digifort-scripts/.env.example' -Destination 'digifort-scripts/.env'
-}
-if (-not (Test-Path -LiteralPath 'cvat_scripts/.env')) {
-    Copy-Item -LiteralPath 'cvat_scripts/.env.example' -Destination 'cvat_scripts/.env'
-}
+### Configuração (.env)
+Copie o modelo de configuração na pasta da aplicação web:
+
+```bash
+cd cvat_toolkit_web
+cp .env.example .env
 ```
 
-Edite os servidores, credenciais, câmeras e projeto. Os modelos são exemplos:
-mantenha apenas os objetos desejados. Reinicie o processo após alterar seu `.env`.
+Preencha as variáveis de conexão com o CVAT (`CVAT_HOST`, `CVAT_USERNAME`, `CVAT_PASSWORD`).
 
-### 2. Configurar o coletor
+### Executando o Servidor Web
 
-Exemplo de `digifort-scripts/.env` para recuperar os últimos 30 dias e continuar ao vivo:
-
-```dotenv
-CAMERAS='[
-  {
-    "url": "http://USUARIO:SENHA@SERVIDOR:8601/Interface/Cameras/GetSnapshot?Camera=VO2C01",
-    "folder": "VO2C01",
-    "interval_seconds": 60,
-    "history": true,
-    "start_date": 30,
-    "end_date": null,
-    "quality": 100,
-    "resize": null,
-    "history_search_hours": 6,
-    "history_retry_seconds": 30
-  }
-]'
-
-OUTPUT_DIR=./volume/image
-REQUEST_TIMEOUT=10
+```bash
+cd cvat_toolkit_web
+uv run python run.py
 ```
 
-Use o endpoint de snapshot HTTP do Digifort; o coletor atual não recebe RTSP
-diretamente. Codifique caracteres especiais nas credenciais da URL, como `@` em
-`%40`. Para uma câmera HTTP/HTTPS comum, informe a URL do snapshot e `history=false`.
-Adicione objetos a `CAMERAS` para coletar de várias câmeras.
+O sistema ficará disponível em:
+- **Porta padrão:** [http://localhost:3012](http://localhost:3012) (ou pelo IP da máquina: `http://<SEU_IP>:3012`)
+- **Porta secundária:** [http://localhost:3013](http://localhost:3013)
 
-### 3. Configurar o uploader
+---
 
-Exemplo de `cvat_scripts/.env`, usando a mesma pasta:
+## 🧪 Testes Automatizados
 
-```dotenv
-CVAT_URL=http://SERVIDOR_CVAT:8080
-CVAT_USERNAME=seu_usuario
-CVAT_PASSWORD='sua_senha'
-CVAT_ORGANIZATION=VOD
-CVAT_LABELS='[]'
+A suíte completa de testes da aplicação web pode ser executada com:
 
-DRY_RUN=true
-LOOP=true
-POLL_INTERVAL_SECONDS=5
-AUTO_REMOVE=false
-
-FOLDERS='[
-  {
-    "images_dir": "../digifort-scripts/volume/image/VO2C01",
-    "images_per_task": 50,
-    "auto_remove": true
-  },
-  {
-    "images_dir": "../digifort-scripts/volume/image/VO2C02",
-    "images_per_task": 100,
-    "auto_remove": false
-  }
-]'
-```
-
-`FOLDERS` é uma lista JSON: cada objeto escolhe a pasta, o projeto e o tamanho do
-lote. Para uma única pasta, mantenha apenas um objeto; para adicionar câmeras,
-acrescente objetos. **A câmera é o nome da pasta**, como `VO2C01` e `VO2C02`.
-Cada `images_dir` aponta diretamente para as imagens dessa câmera.
-Sem `project_id`, procura/cria um projeto com o nome da pasta dentro de `VOD`.
-Assim, `VO2C01` e `VO2C02` têm projetos próprios, reutilizados nas próximas execuções.
-`project_id` continua opcional para escolher um projeto existente explicitamente.
-`CVAT_LABELS='[]'` cria projetos sem labels, conforme o perfil atual; configure
-as classes no CVAT quando for iniciar a anotação. Não altera labels de projetos existentes.
-`auto_remove` controla a remoção por pasta. Se omitido, herda `AUTO_REMOVE` global.
-Uma `organization` no objeto pode substituir `CVAT_ORGANIZATION` global.
-
-O campo `folder` no coletor e a pasta final de `images_dir` devem corresponder:
-
-```text
-digifort-scripts/volume/image/VO2C01/
-  .history.json
-  2026-10-29_08-00-00.jpg
-  2026-10-29_08-01-00.jpg
-```
-
-### 4. Abrir dois terminais
-
-**Terminal 1**, a partir da raiz do repositório:
-
-```powershell
-cd digifort-scripts
-uv run python main.py
-```
-
-**Terminal 2**, também a partir da raiz:
-
-```powershell
-cd cvat_scripts
-uv run python main.py --dry-run
-```
-
-A simulação consulta o projeto e mostra o planejamento, sem criar tasks nem
-remover arquivos. No modo automático, informa se criaria/reutilizaria o projeto
-mesmo quando a pasta está vazia e então aguarda as imagens.
-Depois, para manter o envio ativo no segundo terminal:
-
-```powershell
-uv run python main.py --send
-```
-
-`--send` ativa o envio mesmo com `DRY_RUN=true`. Com `LOOP=true`, espera cinco
-segundos entre ciclos. Use `--send --once` para verificar uma única vez.
-`--dry-run` sempre executa uma vez e nunca apaga arquivos, mesmo com remoção habilitada.
-Encerre cada processo com Ctrl+C.
-
-### 5. Ou executar tudo via Pipeline (orquestrador supervisionado)
-
-Se preferir gerenciar os módulos a partir de um único comando na raiz do repositório,
-use a pipeline integrada (`pipeline.py`). Ela inicia subprocessos independentes para
-a coleta e o envio, preservando o isolamento de dependências e ambientes:
-
-```powershell
-if (-not (Test-Path -LiteralPath 'pipeline.env')) {
-    Copy-Item -LiteralPath 'pipeline.env.example' -Destination 'pipeline.env'
-}
-
-# 1. Conferir arquivos e etapas sem conectar:
-uv run python pipeline.py --check
-
-# 2. Executar a pipeline supervisionada:
-uv run python pipeline.py
-
-# 3. Ou forçar somente a coleta:
-uv run python pipeline.py --collect-only
-```
-
-- **Resiliência a falhas:** se o CVAT não estiver configurado ou estiver fora do ar,
-  a pipeline mantém a coleta de imagens ativa sem interrupções.
-- **Backlog e retomada:** ao restabelecer o CVAT ou corrigir o `.env` e reiniciar
-  a pipeline, o uploader detecta as imagens acumuladas na pasta local e as envia em lotes completos.
-
-## Datas, horários e resolução
-
-Estas opções ficam no objeto de cada câmera do coletor:
-
-| Objetivo | `start_date` | `end_date` | `history` |
-|---|---|---|---|
-| Últimos 30 dias, depois ao vivo | `30` | `null` | `true` |
-| Últimos 30 dias e encerrar no presente | `30` | `0` | `true` |
-| Da gravação mais antiga e continuar | `null` | `null` | `true` |
-| Período fixo | `"2026-10-01T08:00:00"` | `"2026-10-02T18:00:00"` | `true` |
-| Somente ao vivo, continuamente | `null` | `null` | `false` |
-
-Números sem aspas são dias de 24 horas antes da inicialização; `0.5` são 12 horas.
-As datas relativas são calculadas uma vez por execução. `end_date: 0` fixa o fim
-no instante de início; fim `null` ou omitido mantém a coleta sem prazo final.
-Datas ISO aceitam hora e fuso: `2026-10-01T08:00:00-03:00`. Sem fuso, usam o horário
-local; máquina e servidor Digifort devem usar o mesmo fuso para consultar gravações.
-
-`interval_seconds` define os horários das imagens por câmera. No histórico, os
-downloads ocorrem sequencialmente sem esperar esse intervalo no relógio real.
-A busca inicial usa janelas de seis horas de histórico, não esperas de seis horas reais.
-
-Sem `resize`, preserva os bytes recebidos. `"resize": [1280, 720]` reduz no Python
-mantendo a proporção. O snapshot ao vivo Digifort solicita Full HD por padrão;
-o histórico solicita o tamanho original se `capture_resolution` for omitido.
-A qualidade padrão é 100. Veja os [dez exemplos de coleta](digifort-scripts/.env.example).
-
-## Lotes, retomada e remoção
-
-As tasks recebem câmera e datas da primeira/última imagem nos nomes:
-
-```text
-VO2C01 | 2026-10-29T08:00:00.000000 | 2026-10-29T08:49:00.000000
-```
-
-Com `images_per_task=50`:
-
-| Imagens novas | Resultado |
-|---|---|
-| 0 | Aguarda a coleta. |
-| 49 | Aguarda completar 50. |
-| 50 | Envia uma task. |
-| 101 | Envia duas tasks e deixa uma imagem aguardando mais 49. |
-
-**Não envia lotes incompletos**, nem com `--once`. Se uma coleta finita deixar
-um restante, ele fica na pasta. Para enviá-lo, ajuste temporariamente
-`images_per_task` para a quantidade restante e execute `--send --once`; depois
-restaure o limite habitual. O uploader em loop continua aguardando mesmo quando
-o coletor termina um período; encerre-o com Ctrl+C quando necessário.
-
-**Retomada da coleta:** usa a última imagem + intervalo, preservando progresso
-válido mais adiante em `.history.json`. Em todas as câmeras, esse JSON registra
-o nome da pasta, o arquivo e a data da última imagem salva, além do próximo horário.
-Se todas as imagens já tiverem sido removidas após os envios,
-retoma pelo JSON. Preserve esse arquivo. Sem imagens nem progresso, usa o início
-configurado ou procura a gravação mais antiga.
-
-**Retomada do envio:** consulta as tasks da câmera no projeto e encontra a maior
-data final. Envia somente imagens posteriores; anteriores ou iguais são ignoradas,
-inclusive lacunas antigas. Mantenha os nomes das tasks coerentes com seu conteúdo.
-Para reprocessar um período anterior, use uma identificação de pasta/câmera ou
-projeto que não tenha um ponto de retomada posterior ao período desejado.
-
-**Remoção:** com `auto_remove: true` na pasta, somente os arquivos do lote recém-confirmado
-podem ser apagados, após conferir quantidade, nomes no CVAT e finalizar o nome
-da task. Arquivos alterados durante o upload são mantidos com aviso. Restantes,
-imagens antigas ignoradas, `.part`, `.history.json` e outros arquivos permanecem.
-Com `auto_remove: false`, os arquivos daquela pasta são preservados. Se o campo
-for omitido, vale `AUTO_REMOVE` global.
-
-## Outra câmera ou outro projeto
-
-O coletor aceita várias câmeras, e o uploader verifica todas as entradas de
-`FOLDERS` no mesmo processo. Adicione outra pasta à lista JSON:
-
-```json
-{
-  "images_dir": "../digifort-scripts/volume/image/VO2C03",
-  "images_per_task": 200,
-  "auto_remove": true
-}
-```
-
-Reinicie o uploader para carregar a lista alterada. A mesma execução pode enviar
-para projetos diferentes ou para o mesmo projeto, mantendo cada câmera separada.
-Uma falha em uma pasta não impede verificar as seguintes. As pastas são processadas
-sequencialmente; a espera de cinco segundos ocorre após o ciclo completo.
-Não duplique caminhos na lista ou nomes de câmera no mesmo projeto/organização.
-Evite processos simultâneos para o mesmo destino.
-
-## Falhas e problemas comuns
-
-| Situação | O que conferir |
-|---|---|
-| CVAT recusa login | URL, usuário/senha e acesso da conta. |
-| Projeto não pode ser localizado/criado | Organização, permissões e `project_id` se usado explicitamente. |
-| Imagens abaixo do tamanho do lote | Aguarda completar `images_per_task`. |
-| Pasta permanece vazia | URL da imagem, início agendado, rede e logs do coletor. |
-| Task permanece com `uploading` | Verifique processamento, quantidade e arquivos no CVAT antes de concluir ou corrigir a task. |
-| Task antiga não identifica a câmera | Revise e renomeie com câmera, início e fim; o uploader mostra os IDs ambíguos. |
-| Imagens antigas não são enviadas | Estão antes do último horário das tasks dessa câmera/projeto. |
-| Arquivo confirmado não foi removido | Confira avisos de arquivo alterado, permissões ou arquivo em uso. |
-
-Uma task nova tem temporariamente o sufixo ` | uploading`. Falhas preservam o
-lote local e esse marcador impede avançar sem revisão. Não conclua manualmente
-uma task incompleta só para liberar o envio. No modo contínuo, os erros são
-registrados e há nova verificação no próximo ciclo.
-
-## Referências e testes
-
-- [Guia completo do coletor](digifort-scripts/README.md).
-- [Guia completo do uploader](cvat_scripts/README.md).
-- [Exemplos de coleta](digifort-scripts/.env.example).
-- [Exemplos de envio](cvat_scripts/.env.example).
-- [Documentação local do Digifort](digifort-scripts/digifort-doc/).
-
-Para executar os testes locais, em cada pasta de script:
-
-```powershell
+```bash
+cd cvat_toolkit_web
 uv run python -m unittest discover -s tests -v
 ```
-
-Os testes do uploader usam cliente simulado e arquivos temporários isolados:
-não criam tasks reais nem removem imagens operacionais.

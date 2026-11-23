@@ -1,1 +1,0 @@
-"""CVAT and Ultralytics integration."""

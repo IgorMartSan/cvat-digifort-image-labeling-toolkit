@@ -42,4 +42,4 @@ class CreateWorkerRequest(BaseModel):
     capture_mode: str = Field("live", description="'live' para ao vivo, 'history' para gravações passadas")
     start_date: Optional[str] = Field(None, description="Data/hora inicial para histórico (ISO 8601)")
     end_date: Optional[str] = Field(None, description="Data/hora final para histórico")
-    sync_pipeline: bool = Field(True, description="Sincronizar configuração com pipeline.env e scripts")
+    sync_pipeline: bool = Field(False, description="Compatibilidade legada")

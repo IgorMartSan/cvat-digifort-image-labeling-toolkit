@@ -625,16 +625,6 @@
                     </div>
                 </div>
 
-                <!-- Sincronização com a Pipeline (pipeline.env) -->
-                <div class="form-check form-switch p-3 bg-light rounded border mb-4">
-                    <input class="form-check-input ms-0 me-2" type="checkbox" name="sync_pipeline" id="sync_pipeline" value="true" checked onchange="updateSummary()">
-                    <label class="form-check-label fw-bold small text-dark" for="sync_pipeline">
-                        Salvar e sincronizar também nos arquivos da Pipeline (pipeline.env, digifort-scripts/.env, cvat_scripts/.env)
-                    </label>
-                    <div class="text-muted small mt-1 ps-4">
-                        Configura a execução contínua via terminal (<code>uv run python pipeline.py</code>) com retry de 13s.
-                    </div>
-                </div>
 
                 <div class="d-flex justify-content-between">
                     <button type="button" class="btn btn-sm btn-outline-secondary px-3" onclick="goToStep(3)">
