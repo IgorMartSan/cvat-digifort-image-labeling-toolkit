@@ -25,14 +25,16 @@ WORKDIR /app
 # Camada 1: Cópia isolada dos manifestos para cache de dependências
 COPY pyproject.toml uv.lock ./
 
-# Instala as dependências congeladas sem o código da aplicação (cache eficiente)
-RUN uv sync --frozen --no-install-project --no-dev
+# Instala as dependências congeladas sem o código da aplicação (cache eficiente com cache mount)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
 
 # Camada 2: Cópia do código-fonte da aplicação
 COPY . .
 
 # Finaliza a sincronização do projeto
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # Cria pontos de montagem para persistência de dados
 RUN mkdir -p /app/volume /app/data /app/models /app/logs /app/.cache

@@ -67,6 +67,18 @@ class YoloTrainer(BaseTrainer):
             else:
                 resolved_weights = f"{clean_base}.pt"
 
+        from app.core.config import WEIGHTS_DIR
+
+        # Se for um nome de modelo base oficial, direciona para a pasta de cache de pesos
+        weights_path = Path(resolved_weights)
+        if not weights_path.is_file():
+            WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+            candidate = WEIGHTS_DIR / weights_path.name
+            if candidate.is_file():
+                resolved_weights = str(candidate)
+            elif not weights_path.is_absolute():
+                resolved_weights = str(candidate)
+
         if log_callback:
             log_callback({
                 "type": "log",

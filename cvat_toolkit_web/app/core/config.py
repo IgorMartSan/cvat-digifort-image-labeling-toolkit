@@ -9,13 +9,21 @@ from dotenv import load_dotenv
 APP_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(APP_ROOT / ".env")
 
-# Base de volume unificado (quando montado via Docker em /app/volume ou ./volume)
-VOLUME_DIR = Path("/app/volume") if Path("/app/volume").is_dir() else (APP_ROOT / "volume" if (APP_ROOT / "volume").is_dir() else None)
+# Base de volume unificado (quando montado via Docker em /app/volume ou na raiz do repo pelo uv)
+if Path("/app/volume").is_dir():
+    VOLUME_DIR = Path("/app/volume")
+elif (APP_ROOT.parent / "volume").is_dir():
+    VOLUME_DIR = APP_ROOT.parent / "volume"
+elif (APP_ROOT / "volume").is_dir():
+    VOLUME_DIR = APP_ROOT / "volume"
+else:
+    VOLUME_DIR = None
 
 DATA_DIR = (VOLUME_DIR / "data") if VOLUME_DIR else (APP_ROOT / "data")
 MODELS_DIR = (VOLUME_DIR / "models") if VOLUME_DIR else (APP_ROOT / "models")
 LOGS_DIR = (VOLUME_DIR / "logs") if VOLUME_DIR else (APP_ROOT / "logs")
 CACHE_DIR = (VOLUME_DIR / "cache") if VOLUME_DIR else (APP_ROOT / ".cache")
+WEIGHTS_DIR = CACHE_DIR / "weights"
 
 # Ultralytics & Torch cache
 os.environ.setdefault("YOLO_CONFIG_DIR", str(CACHE_DIR / "ultralytics"))
@@ -25,7 +33,7 @@ MAX_LOG_ENTRIES = int(os.getenv("MAX_LOG_ENTRIES", "20"))
 
 
 def ensure_system_dirs() -> None:
-    for folder in (DATA_DIR, MODELS_DIR, LOGS_DIR, CACHE_DIR):
+    for folder in (DATA_DIR, MODELS_DIR, LOGS_DIR, CACHE_DIR, WEIGHTS_DIR):
         folder.mkdir(parents=True, exist_ok=True)
 
 

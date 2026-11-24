@@ -9,3 +9,9 @@ __pycache__/
 
 # Volume de persistência de dados (Docker bind mount)
 volume/
+
+# Pesos e modelos de IA (YOLO / PyTorch / ONNX)
+*.pt
+*.pth
+*.onnx
+*.engine
