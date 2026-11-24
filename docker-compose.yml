@@ -1,0 +1,24 @@
+services:
+  cvat-toolkit-web:
+    build:
+      context: ./cvat_toolkit_web
+      dockerfile: Dockerfile
+    container_name: cvat_toolkit_web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3012}:3012"
+    env_file:
+      - ./cvat_toolkit_web/.env
+    environment:
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=3012
+      - WEB_RELOAD=false
+    volumes:
+      - ./volume:/app/volume
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -32,4 +32,7 @@ if __name__ == "__main__":
     print(f" • Escutando em:   {host}:{port}")
     print("=" * 60 + "\n")
 
-    uvicorn.run("app.main:app", host=host, port=port, reload=True, timeout_graceful_shutdown=1)
+    reload_env = os.getenv("WEB_RELOAD")
+    reload = reload_env.lower() in ("true", "1", "yes") if reload_env is not None else True
+
+    uvicorn.run("app.main:app", host=host, port=port, reload=reload, timeout_graceful_shutdown=1)

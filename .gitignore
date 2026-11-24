@@ -6,3 +6,6 @@ __pycache__/
 
 # Configurações locais
 .env
+
+# Volume de persistência de dados (Docker bind mount)
+volume/

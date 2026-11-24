@@ -1,0 +1,30 @@
+# Ambientes virtuais e gerenciadores de pacotes
+.venv/
+.uv-cache/
+
+# Bytecode e caches do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Dados de execução e modelos (persistidos via volume bind mount)
+data/
+models/
+logs/
+.cache/
+
+# Git e arquivos locais
+.git/
+.gitignore
+.env
+.env.*
+Dockerfile
+.dockerignore
+tests/
+
+# Arquivos temporários e de sistema
+*.tmp
+*.log
+.DS_Store
