@@ -657,6 +657,51 @@ class TestCvatToolkitWebApp(unittest.TestCase):
         self.assertEqual(processed_frames, [1, 3])
         self.assertEqual(counts["processed"], 2)
 
+    def test_yolo26_support_and_model_options(self):
+        """Valida suporte ao framework e opções de modelos YOLO26."""
+        from app.frameworks import TRAINERS, PREDICTORS
+        from app.modules.training.schemas import StartTrainRequest
+
+        # 1. Verifica registro de framework yolo26
+        self.assertIn("yolo26", TRAINERS)
+        self.assertIn("yolo26", PREDICTORS)
+
+        # 2. Verifica StartTrainRequest com yolo26
+        req = StartTrainRequest(
+            project_id=1,
+            task_ids=[10],
+            mode="segmentation",
+            model_name="yolo26m",
+            framework="yolo26",
+        )
+        self.assertEqual(req.model_name, "yolo26m")
+        self.assertEqual(req.framework, "yolo26")
+
+        # 3. Verifica renderização do HTML com opções YOLO26
+        with patch("app.modules.training.service.analyze_dataset_service", return_value={
+            "total_images": 100,
+            "annotated_images": 50,
+            "empty_images": 50,
+            "rectangles": 0,
+            "polygons": 50,
+            "labels": {"obj": 50},
+            "incompatible": {},
+            "detection_compatible_frames": 50,
+            "segmentation_compatible_frames": 50,
+        }):
+            with patch("app.modules.training.router.list_available_models", return_value=[]):
+                res = self.client.post("/training/analyze", data={"project_id": 1, "task_ids": [10]})
+                self.assertEqual(res.status_code, 200)
+                # Verifica que os modelos da família YOLO26 estão presentes na interface
+                self.assertIn("yolo26n", res.text)
+                self.assertIn("yolo26s", res.text)
+                self.assertIn("yolo26m", res.text)
+                self.assertIn("yolo26l", res.text)
+                self.assertIn("yolo26x", res.text)
+                # Verifica que os modelos YOLO11 continuam disponíveis
+                self.assertIn("yolo11n", res.text)
+                self.assertIn("yolo11m", res.text)
+
 
 if __name__ == "__main__":
     unittest.main()

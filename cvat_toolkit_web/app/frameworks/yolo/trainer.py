@@ -140,8 +140,15 @@ class YoloTrainer(BaseTrainer):
         }
 
         now_utc = datetime.now(timezone.utc)
+        resolved_fw = metadata.get("framework")
+        if not resolved_fw or resolved_fw == "yolo11":
+            if str(metadata.get("model_name", "")).startswith("yolo26") or "yolo26" in str(resolved_weights):
+                resolved_fw = "yolo26"
+            else:
+                resolved_fw = self.name
+
         metadata.update({
-            "framework": self.name,
+            "framework": resolved_fw,
             "mode": mode,
             "trained_at": now_utc.isoformat(),
             "trained_at_formatted": now_utc.strftime("%d/%m/%Y %H:%M:%S"),

@@ -31,7 +31,7 @@
                         <option value="sam" disabled>✂️ SAM — Segment Anything (Em Breve)</option>
                     </select>
                     <div class="form-text small text-muted mt-1">
-                        Líder de mercado em performance e acurácia para Detecção de Objetos e Segmentação de Instâncias (YOLO11 / YOLOv8).
+                        Líder de mercado em performance e acurácia para Detecção de Objetos e Segmentação de Instâncias (YOLO26 / YOLO11 / YOLOv8).
                     </div>
                 </div>
             </div>
@@ -146,16 +146,126 @@
                 </div>
             </div>
 
-            <!-- B. Escolha do Porte do Modelo YOLO -->
+            <!-- B. Escolha do Porte e Arquitetura do Modelo -->
             <div class="mb-4">
-                <label class="form-label small fw-bold text-uppercase text-muted d-block mb-2">
-                    B. Porte e Arquitetura do Modelo:
-                </label>
-                <div class="row g-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                    <label class="form-label small fw-bold text-uppercase text-muted mb-0">
+                        B. Porte e Arquitetura do Modelo:
+                    </label>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Seletor de Família YOLO">
+                        <button type="button" class="btn btn-dark active fw-semibold" id="tab-btn-yolo26" onclick="switchModelFamily('yolo26')">
+                            🚀 YOLO26 (Nova Geração End-to-End)
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary fw-semibold" id="tab-btn-yolo11" onclick="switchModelFamily('yolo11')">
+                            ⚡ YOLO11 (Ultralytics)
+                        </button>
+                        {% if available_models %}
+                        <button type="button" class="btn btn-outline-secondary fw-semibold" id="tab-btn-custom" onclick="switchModelFamily('custom_local')">
+                            💾 Modelos Salvos ({{ available_models | length }})
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Família YOLO26 (Nova Geração End-to-End) -->
+                <div class="row g-3" id="family-yolo26-container">
                     <!-- Pequeno (Nano) -->
                     <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
-                            <input type="radio" name="model_name_choice" value="yolo11n" checked onchange="selectModelChoice(this.value)">
+                            <input type="radio" name="model_name_choice" value="yolo26n" checked onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="option-card-header">
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Pequeno (Nano)</span>
+                                    <small class="text-muted">~2.6M • End-to-End</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO26 Nano (yolo26n)</div>
+                                <p class="text-muted small mb-0">
+                                    Ultrarrápido, arquitetura NMS-Free End-to-End, baixíssimo consumo de memória, ideal para CPU e Edge.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Pequeno (Small) -->
+                    <div class="col-md-6 col-lg-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo26s" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="option-card-header">
+                                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Pequeno (Small)</span>
+                                    <small class="text-muted">~10.0M • End-to-End</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO26 Small (yolo26s)</div>
+                                <p class="text-muted small mb-0">
+                                    Excelente balanço entre precisão e alta taxa de FPS com inferência direta NMS-Free.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Médio (Medium) -->
+                    <div class="col-md-6 col-lg-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo26m" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="option-card-header">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Médio (Medium)</span>
+                                    <small class="text-muted">~21.9M • End-to-End</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO26 Medium (yolo26m)</div>
+                                <p class="text-muted small mb-0">
+                                    O equilíbrio ideal recomendado para ambiente industrial e alta precisão com GPU dedicada.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Grande (Large) -->
+                    <div class="col-md-6 col-lg-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo26l" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="option-card-header">
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Grande (Large)</span>
+                                    <small class="text-muted">~26.3M • End-to-End</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO26 Large (yolo26l)</div>
+                                <p class="text-muted small mb-0">
+                                    Capacidade elevada para detalhes finos, polígonos complexos e objetos pequenos com forte generalização.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Extra (XLarge) -->
+                    <div class="col-md-6 col-lg-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo26x" onchange="selectModelChoice(this.value)">
+                            <div class="option-card">
+                                <span class="option-card-check-icon">✓</span>
+                                <div class="option-card-header">
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Extra (XLarge)</span>
+                                    <small class="text-muted">~59.0M • End-to-End</small>
+                                </div>
+                                <div class="fw-bold text-dark fs-6 mb-1">YOLO26 XLarge (yolo26x)</div>
+                                <p class="text-muted small mb-0">
+                                    Máxima capacidade de representação e acurácia estado-da-arte para extração crítica de características.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Família YOLO11 (Ultralytics) -->
+                <div class="row g-3" id="family-yolo11-container" style="display: none;">
+                    <!-- Pequeno (Nano) -->
+                    <div class="col-md-6 col-lg-4">
+                        <label class="option-card-label">
+                            <input type="radio" name="model_name_choice" value="yolo11n" onchange="selectModelChoice(this.value)">
                             <div class="option-card">
                                 <span class="option-card-check-icon">✓</span>
                                 <div class="option-card-header">
@@ -241,9 +351,11 @@
                             </div>
                         </label>
                     </div>
+                </div>
 
-                    <!-- Modelos Anteriores Salvos Localmente -->
-                    {% if available_models %}
+                <!-- Modelos Anteriores Salvos Localmente -->
+                {% if available_models %}
+                <div class="row g-3" id="family-custom-container" style="display: none;">
                     <div class="col-md-6 col-lg-4">
                         <label class="option-card-label">
                             <input type="radio" name="model_name_choice" value="custom_local" onchange="selectModelChoice('custom_local')">
@@ -260,8 +372,8 @@
                             </div>
                         </label>
                     </div>
-                    {% endif %}
                 </div>
+                {% endif %}
 
                 <!-- Seletor de Modelo Salvo Local (se selecionado) -->
                 {% if available_models %}
@@ -433,8 +545,46 @@
 </form>
 
 <script>
-    let selectedModelChoice = 'yolo11n';
+    let currentModelFamily = 'yolo26';
+    let selectedModelChoice = 'yolo26n';
     let trainAllImages = false;
+
+    function switchModelFamily(family) {
+        currentModelFamily = family;
+
+        const yolo26El = document.getElementById('family-yolo26-container');
+        const yolo11El = document.getElementById('family-yolo11-container');
+        const customEl = document.getElementById('family-custom-container');
+        const customSelector = document.getElementById('custom-model-selector');
+
+        if (yolo26El) yolo26El.style.display = (family === 'yolo26') ? 'flex' : 'none';
+        if (yolo11El) yolo11El.style.display = (family === 'yolo11') ? 'flex' : 'none';
+        if (customEl) customEl.style.display = (family === 'custom_local') ? 'flex' : 'none';
+        if (customSelector) customSelector.style.display = (family === 'custom_local') ? 'block' : 'none';
+
+        ['yolo26', 'yolo11', 'custom'].forEach(f => {
+            const btn = document.getElementById(`tab-btn-${f}`);
+            if (!btn) return;
+            if ((family === 'custom_local' && f === 'custom') || family === f) {
+                btn.className = 'btn btn-dark active fw-semibold';
+            } else {
+                btn.className = 'btn btn-outline-secondary fw-semibold';
+            }
+        });
+
+        // Se a opção selecionada atualmente for de outra família, auto-seleciona a primeira dessa família
+        if (family === 'yolo26' && !selectedModelChoice.startsWith('yolo26')) {
+            const radio = document.querySelector('input[name="model_name_choice"][value="yolo26n"]');
+            if (radio) { radio.checked = true; selectModelChoice('yolo26n'); }
+        } else if (family === 'yolo11' && !selectedModelChoice.startsWith('yolo11')) {
+            const radio = document.querySelector('input[name="model_name_choice"][value="yolo11n"]');
+            if (radio) { radio.checked = true; selectModelChoice('yolo11n'); }
+        } else if (family === 'custom_local') {
+            const radio = document.querySelector('input[name="model_name_choice"][value="custom_local"]');
+            if (radio) { radio.checked = true; selectModelChoice('custom_local'); }
+        }
+        if (typeof saveCurrentConfigToMemory === 'function') saveCurrentConfigToMemory();
+    }
 
     function toggleImagesChoice(val) {
         trainAllImages = val;
@@ -443,6 +593,14 @@
 
     function selectModelChoice(val) {
         selectedModelChoice = val;
+        if (val.startsWith('yolo26')) {
+            currentModelFamily = 'yolo26';
+        } else if (val.startsWith('yolo11')) {
+            currentModelFamily = 'yolo11';
+        } else if (val === 'custom_local') {
+            currentModelFamily = 'custom_local';
+        }
+
         const customSelector = document.getElementById('custom-model-selector');
         if (customSelector) {
             customSelector.style.display = (val === 'custom_local') ? 'block' : 'none';
@@ -477,13 +635,14 @@
         if (!form) return;
         const fd = new FormData(form);
 
-        // Framework
-        const fwEl = document.getElementById('summary-framework');
-        if (fwEl) fwEl.innerText = 'YOLO11 — Ultralytics';
-
         // Modelo
-        const modelChoice = fd.get('model_name_choice') || 'yolo11n';
+        const modelChoice = fd.get('model_name_choice') || 'yolo26n';
         const modelNames = {
+            'yolo26n': 'YOLO26 Nano (~2.6M params • End-to-End)',
+            'yolo26s': 'YOLO26 Small (~10.0M params • End-to-End)',
+            'yolo26m': 'YOLO26 Medium (~21.9M params • End-to-End)',
+            'yolo26l': 'YOLO26 Large (~26.3M params • End-to-End)',
+            'yolo26x': 'YOLO26 XLarge (~59.0M params • End-to-End)',
             'yolo11n': 'YOLO11 Nano (~2.6M params)',
             'yolo11s': 'YOLO11 Small (~9.4M params)',
             'yolo11m': 'YOLO11 Medium (~20.1M params)',
@@ -493,6 +652,18 @@
         };
         const modelEl = document.getElementById('summary-model');
         if (modelEl) modelEl.innerText = modelNames[modelChoice] || modelChoice;
+
+        // Framework
+        const fwEl = document.getElementById('summary-framework');
+        if (fwEl) {
+            if (modelChoice.startsWith('yolo26')) {
+                fwEl.innerText = 'YOLO26 — Ultralytics (End-to-End NMS-Free)';
+            } else if (modelChoice.startsWith('yolo11')) {
+                fwEl.innerText = 'YOLO11 — Ultralytics';
+            } else {
+                fwEl.innerText = 'YOLO — Ultralytics';
+            }
+        }
 
         // Imagens
         const allImgs = fd.get('train_all_images_choice') === 'true';

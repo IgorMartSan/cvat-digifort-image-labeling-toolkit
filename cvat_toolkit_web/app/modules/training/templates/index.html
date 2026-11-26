@@ -73,9 +73,9 @@
 
     // Cache persistente de configurações de treinamento na memória do navegador
     let savedTrainingConfig = {
-        framework: 'yolo11',
+        framework: 'yolo26',
         train_all_images_choice: 'false',
-        model_name_choice: 'yolo11n',
+        model_name_choice: 'yolo26n',
         custom_weights: '',
         mode: '',
         derive_polygons: true,
@@ -119,10 +119,13 @@
             }
         }
         if (savedTrainingConfig.model_name_choice) {
-            const radio = form.querySelector(`input[name="model_name_choice"][value="${savedTrainingConfig.model_name_choice}"]`);
+            const val = savedTrainingConfig.model_name_choice;
+            const fam = val.startsWith('yolo26') ? 'yolo26' : (val.startsWith('yolo11') ? 'yolo11' : 'custom_local');
+            if (typeof switchModelFamily === 'function') switchModelFamily(fam);
+            const radio = form.querySelector(`input[name="model_name_choice"][value="${val}"]`);
             if (radio) {
                 radio.checked = true;
-                if (typeof selectModelChoice === 'function') selectModelChoice(savedTrainingConfig.model_name_choice);
+                if (typeof selectModelChoice === 'function') selectModelChoice(val);
             }
         }
         if (savedTrainingConfig.custom_weights) {
@@ -347,7 +350,7 @@
             batch: parseInt(formData.get('batch') || 16),
             image_size: parseInt(formData.get('image_size') || 640),
             device: formData.get('device') || 'auto',
-            framework: 'yolo11'
+            framework: modelChoice.startsWith('yolo26') ? 'yolo26' : (formData.get('framework') || 'yolo11')
         };
 
         const btn = document.getElementById('start-train-btn');
